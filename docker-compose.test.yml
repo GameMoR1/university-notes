@@ -1,0 +1,32 @@
+version: "3.9"
+
+# Тестовый режим — только backend + frontend, SQLite
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: usuz-backend-test
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      TEST: "true"
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend:/app
+      - backend_data:/app/data
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: usuz-frontend-test
+    restart: unless-stopped
+    ports:
+      - "3000:80"
+    depends_on:
+      - backend
+
+volumes:
+  backend_data:

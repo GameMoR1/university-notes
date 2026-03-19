@@ -1,0 +1,108 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html { color-scheme: dark; }
+  body {
+    @apply bg-bg-primary text-text-primary antialiased;
+    font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
+  }
+}
+
+@layer components {
+  .glass {
+    @apply bg-bg-card/80 backdrop-blur-sm border border-border;
+  }
+  .glass-hover {
+    @apply hover:bg-bg-hover hover:border-border-light transition-all duration-200;
+  }
+  .btn-primary {
+    @apply bg-accent-purple hover:bg-violet-600 text-white px-4 py-2 rounded-lg font-medium
+           transition-all duration-200 hover:shadow-lg hover:shadow-accent-purple/25
+           active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+  .btn-secondary {
+    @apply bg-bg-tertiary hover:bg-bg-hover text-text-primary px-4 py-2 rounded-lg font-medium
+           border border-border hover:border-border-light transition-all duration-200 active:scale-95;
+  }
+  .btn-ghost {
+    @apply text-text-secondary hover:text-text-primary hover:bg-bg-tertiary px-3 py-2 rounded-lg
+           transition-all duration-200 active:scale-95;
+  }
+  .btn-danger {
+    @apply bg-red-600/20 hover:bg-red-600/30 text-red-400 border border-red-600/30
+           hover:border-red-500 px-4 py-2 rounded-lg font-medium transition-all duration-200;
+  }
+  .input {
+    @apply bg-bg-tertiary border border-border text-text-primary placeholder-text-muted
+           rounded-lg px-4 py-2.5 w-full outline-none
+           focus:border-accent-purple focus:ring-1 focus:ring-accent-purple/50
+           transition-all duration-200;
+  }
+  .card {
+    @apply bg-bg-card border border-border rounded-xl p-5 
+           hover:border-border-light transition-all duration-200;
+  }
+  .tag-chip {
+    @apply inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium
+           border transition-all duration-150;
+  }
+  .sidebar-link {
+    @apply flex items-center gap-3 px-3 py-2.5 rounded-lg text-text-secondary
+           hover:text-text-primary hover:bg-bg-tertiary transition-all duration-150
+           cursor-pointer select-none;
+  }
+  .sidebar-link.active {
+    @apply text-text-accent bg-accent-purple/15 border border-accent-purple/30;
+  }
+}
+
+/* Markdown стили */
+.markdown-body {
+  @apply text-text-primary leading-relaxed;
+}
+.markdown-body h1 { @apply text-3xl font-bold text-text-primary mt-8 mb-4 border-b border-border pb-3; }
+.markdown-body h2 { @apply text-2xl font-bold text-text-primary mt-6 mb-3; }
+.markdown-body h3 { @apply text-xl font-semibold text-text-primary mt-5 mb-2; }
+.markdown-body h4 { @apply text-lg font-semibold text-text-secondary mt-4 mb-2; }
+.markdown-body p  { @apply text-text-secondary mb-4 leading-7; }
+.markdown-body a  { @apply text-accent-purple-light hover:underline; }
+.markdown-body strong { @apply text-text-primary font-semibold; }
+.markdown-body em { @apply text-text-secondary italic; }
+.markdown-body ul { @apply list-disc list-inside mb-4 space-y-1; }
+.markdown-body ol { @apply list-decimal list-inside mb-4 space-y-1; }
+.markdown-body li { @apply text-text-secondary; }
+.markdown-body blockquote {
+  @apply border-l-4 border-accent-purple pl-4 my-4 italic text-text-secondary bg-bg-secondary py-2 rounded-r;
+}
+.markdown-body code:not(pre code) {
+  @apply bg-bg-tertiary text-accent-purple-light px-1.5 py-0.5 rounded font-mono text-sm border border-border;
+}
+.markdown-body pre {
+  @apply bg-bg-secondary border border-border rounded-xl p-4 mb-4 overflow-x-auto;
+}
+.markdown-body pre code {
+  @apply font-mono text-sm text-text-primary bg-transparent border-0 p-0;
+}
+.markdown-body table {
+  @apply w-full mb-4 border-collapse;
+}
+.markdown-body th {
+  @apply bg-bg-tertiary text-text-primary font-semibold px-4 py-2 border border-border text-left;
+}
+.markdown-body td {
+  @apply text-text-secondary px-4 py-2 border border-border;
+}
+.markdown-body tr:hover td { @apply bg-bg-secondary; }
+.markdown-body hr { @apply border-border my-6; }
+
+/* Анимации загрузки */
+.skeleton {
+  @apply bg-bg-tertiary rounded animate-pulse;
+}
+
+/* Scrollbar в WebKit */
+.thin-scroll::-webkit-scrollbar { width: 4px; }
+.thin-scroll::-webkit-scrollbar-track { background: transparent; }
+.thin-scroll::-webkit-scrollbar-thumb { background: #3a3a48; border-radius: 2px; }

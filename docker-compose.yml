@@ -1,0 +1,59 @@
+version: "3.9"
+
+services:
+  # ── База данных PostgreSQL ────────────────────────────────────────────────────
+  db:
+    image: postgres:16-alpine
+    container_name: usuz-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-notes_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-notes_password}
+      POSTGRES_DB: ${POSTGRES_DB:-university_notes}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-notes_user} -d ${POSTGRES_DB:-university_notes}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── Backend (FastAPI) ─────────────────────────────────────────────────────────
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: usuz-backend
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      TEST: "false"
+      POSTGRES_HOST: db
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - ./backend:/app
+      - backend_data:/app/data
+
+  # ── Frontend (Nginx) ──────────────────────────────────────────────────────────
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: usuz-frontend
+    restart: unless-stopped
+    ports:
+      - "7009:80"
+    depends_on:
+      - backend
+    environment:
+      BACKEND_URL: http://backend:8000
+
+volumes:
+  postgres_data:
+  backend_data:
