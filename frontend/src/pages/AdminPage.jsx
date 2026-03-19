@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import { useAuthStore } from '@/store/authStore'
 import api from '@/utils/api'
-import { PageLoader } from '@/components/ui/Common'
+import { PageLoader, CustomSelect } from '@/components/ui/Common'
 import toast from 'react-hot-toast'
 import {
   Users, BookOpen, MessageSquare, Tag, BarChart3, Shield,
@@ -260,15 +260,12 @@ export default function AdminPage() {
                   <div className="text-xs text-text-muted">{user.email}</div>
                 </div>
 
-                <select
+                <CustomSelect
                   value={user.role?.id || ''}
-                  onChange={(e) => changeRole(user.id, parseInt(e.target.value))}
-                  className="input h-8 text-xs w-32"
-                >
-                  {roles.map((r) => (
-                    <option key={r.id} value={r.id}>{r.name}</option>
-                  ))}
-                </select>
+                  onChange={(val) => changeRole(user.id, parseInt(val))}
+                  options={roles.map((r) => ({ value: r.id, label: r.name }))}
+                  className="w-32"
+                />
 
                 <div className="flex items-center gap-1">
                   <button

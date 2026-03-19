@@ -56,6 +56,7 @@ class User(Base):
     role: Mapped["Role"] = relationship("Role", back_populates="users")
 
     notes: Mapped[List["Note"]] = relationship("Note", back_populates="author", cascade="all, delete-orphan")
+    folders: Mapped[List["Folder"]] = relationship("Folder", back_populates="user", cascade="all, delete-orphan")
     comments: Mapped[List["Comment"]] = relationship("Comment", back_populates="author", cascade="all, delete-orphan")
     logs: Mapped[List["ActivityLog"]] = relationship("ActivityLog", back_populates="user", cascade="all, delete-orphan")
 
@@ -88,6 +89,21 @@ note_links = Table(
 )
 
 
+# ─── Папки ────────────────────────────────────────────────────────────────────
+class Folder(Base):
+    __tablename__ = "folders"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    name: Mapped[str] = mapped_column(String(200), nullable=False)
+    is_favorite: Mapped[bool] = mapped_column(Boolean, default=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    user: Mapped["User"] = relationship("User", back_populates="folders")
+    
+    notes: Mapped[List["Note"]] = relationship("Note", back_populates="folder", cascade="all, delete-orphan")
+
+
 # ─── Заметки ──────────────────────────────────────────────────────────────────
 class Note(Base):
     __tablename__ = "notes"
@@ -102,6 +118,9 @@ class Note(Base):
 
     author_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     author: Mapped["User"] = relationship("User", back_populates="notes")
+
+    folder_id: Mapped[Optional[int]] = mapped_column(ForeignKey("folders.id", ondelete="SET NULL"), nullable=True)
+    folder: Mapped[Optional["Folder"]] = relationship("Folder", back_populates="notes")
 
     tags: Mapped[List["Tag"]] = relationship("Tag", secondary="note_tags", back_populates="notes")
     comments: Mapped[List["Comment"]] = relationship(

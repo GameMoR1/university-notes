@@ -83,6 +83,26 @@ class UserAdminUpdate(BaseModel):
     name: Optional[str] = None
 
 
+# ─── Папки ────────────────────────────────────────────────────────────────────
+class FolderOut(BaseModel):
+    id: int
+    name: str
+    is_favorite: bool
+    created_at: datetime
+    user_id: int
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class FolderCreate(BaseModel):
+    name: str
+
+
+class FolderUpdate(BaseModel):
+    name: Optional[str] = None
+    is_favorite: Optional[bool] = None
+
+
 # ─── Теги ─────────────────────────────────────────────────────────────────────
 class TagOut(BaseModel):
     id: int
@@ -120,6 +140,7 @@ class NoteCreate(BaseModel):
     is_published: bool = False
     tag_ids: List[int] = []
     linked_note_ids: List[int] = []
+    folder_id: Optional[int] = None
 
 
 class NoteUpdate(BaseModel):
@@ -128,6 +149,7 @@ class NoteUpdate(BaseModel):
     is_published: Optional[bool] = None
     tag_ids: Optional[List[int]] = None
     linked_note_ids: Optional[List[int]] = None
+    folder_id: Optional[int] = None
 
 
 class NoteShort(BaseModel):
@@ -140,6 +162,7 @@ class NoteShort(BaseModel):
     updated_at: datetime
     author: NoteAuthor
     tags: List[TagOut] = []
+    folder_id: Optional[int] = None
 
     model_config = ConfigDict(from_attributes=True)
 

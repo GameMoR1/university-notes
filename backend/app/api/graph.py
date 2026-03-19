@@ -1,7 +1,7 @@
 """Graph API — данные для 3D-графа."""
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
@@ -16,16 +16,20 @@ router = APIRouter(prefix="/graph", tags=["graph"])
 
 @router.get("", response_model=GraphData)
 async def get_graph(
+    folder_id: Optional[int] = Query(None),
     db: AsyncSession = Depends(get_db),
     current_user: Optional[User] = Depends(get_current_user_optional),
 ):
     # Определяем доступные заметки
-    if current_user and (current_user.role.can_create_notes or current_user.role.can_manage_users):
-        notes_q = select(Note).options(selectinload(Note.tags), selectinload(Note.linked_notes), selectinload(Note.comments))
-    else:
-        notes_q = select(Note).options(selectinload(Note.tags), selectinload(Note.linked_notes), selectinload(Note.comments)).where(Note.is_published == True)
+    query = select(Note).options(selectinload(Note.tags), selectinload(Note.linked_notes), selectinload(Note.comments))
+    
+    if folder_id:
+        query = query.where(Note.folder_id == folder_id)
 
-    result = await db.execute(notes_q)
+    if not (current_user and (current_user.role.can_create_notes or current_user.role.can_manage_users)):
+        query = query.where(Note.is_published == True)
+
+    result = await db.execute(query)
     notes = result.scalars().unique().all()
 
     note_ids = {n.id for n in notes}

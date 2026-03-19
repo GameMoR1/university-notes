@@ -7,17 +7,20 @@ import { oneDark } from '@codemirror/theme-one-dark'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import api from '@/utils/api'
-import { PageLoader } from '@/components/ui/Common'
+import { PageLoader, CustomSelect } from '@/components/ui/Common'
 import toast from 'react-hot-toast'
+import { useSearchParams } from 'react-router-dom'
 import {
   Save, Eye, EyeOff, ArrowLeft, Tag, Link2, X, Plus,
-  Globe, Lock, Loader2
+  Globe, Lock, Loader2, Folder
 } from 'lucide-react'
 
 export default function NoteEditPage() {
   const { id } = useParams()
   const isEdit = !!id
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+  const initialFolderId = searchParams.get('folder')
 
   const [loading, setLoading] = useState(isEdit)
   const [saving, setSaving] = useState(false)
@@ -29,9 +32,11 @@ export default function NoteEditPage() {
     is_published: false,
     tag_ids: [],
     linked_note_ids: [],
+    folder_id: initialFolderId ? parseInt(initialFolderId) : null,
   })
 
   const [tags, setTags] = useState([])
+  const [folders, setFolders] = useState([])
   const [allNotes, setAllNotes] = useState([])
   const [newTag, setNewTag] = useState('')
   const [linkSearch, setLinkSearch] = useState('')
@@ -87,12 +92,14 @@ export default function NoteEditPage() {
   useEffect(() => {
     const load = async () => {
       try {
-        const [tagsRes, notesRes] = await Promise.all([
+        const [tagsRes, notesRes, foldersRes] = await Promise.all([
           api.get('/tags'),
           api.get('/notes', { params: { per_page: 100, published_only: false } }),
+          api.get('/folders'),
         ])
         setTags(tagsRes.data)
         setAllNotes(notesRes.data.items.filter((n) => String(n.id) !== String(id)))
+        setFolders(foldersRes.data)
 
         if (isEdit) {
           const { data } = await api.get(`/notes/${id}`)
@@ -101,6 +108,7 @@ export default function NoteEditPage() {
             is_published: data.is_published,
             tag_ids: (data.tags || []).map((t) => Number(t.id)),
             linked_note_ids: (data.linked_notes || []).map((n) => Number(n.id)),
+            folder_id: data.folder_id,
           })
           setContent(data.content || '')
         }
@@ -250,6 +258,22 @@ export default function NoteEditPage() {
         {/* Боковая панель */}
         <div className="w-72 border-l border-border bg-bg-secondary overflow-auto thin-scroll flex-shrink-0">
           <div className="p-4 space-y-6">
+            {/* Папка */}
+            <div>
+              <div className="flex items-center gap-2 mb-3 text-text-secondary text-sm font-medium">
+                <Folder size={14} className="text-accent-purple-light" /> Папка
+              </div>
+              <CustomSelect
+                value={form.folder_id || ''}
+                onChange={(val) => setForm({ ...form, folder_id: val ? parseInt(val) : null })}
+                options={[
+                  { value: '', label: 'Без папки' },
+                  ...folders.map((f) => ({ value: f.id, label: f.name }))
+                ]}
+                className="w-full"
+              />
+            </div>
+
             {/* Теги */}
             <div>
               <div className="flex items-center gap-2 mb-3 text-text-secondary text-sm font-medium">

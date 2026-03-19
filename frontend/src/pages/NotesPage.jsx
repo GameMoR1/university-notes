@@ -1,15 +1,15 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import api from '@/utils/api'
 import { useAuthStore } from '@/store/authStore'
-import { PageLoader, EmptyState, Badge } from '@/components/ui/Common'
-import { Search, Plus, BookOpen, Eye, MessageSquare, Tag, Filter, X, Clock, User, Globe, Lock, ChevronDown } from 'lucide-react'
+import { PageLoader, EmptyState, Badge, FolderSwitcher } from '@/components/ui/Common'
+import { Search, Plus, BookOpen, Eye, MessageSquare, Tag, Filter, X, Clock, User, Globe, Lock, ChevronDown, FolderPlus, Star, Folder } from 'lucide-react'
 import { formatDistanceToNow } from 'date-fns'
 import { ru } from 'date-fns/locale'
 import toast from 'react-hot-toast'
 
-function NoteCard({ note, onDelete }) {
+function NoteCard({ note, onDelete, onMove }) {
   const navigate = useNavigate()
   const { canCreateNotes, isAdmin } = useAuthStore()
 
@@ -26,7 +26,16 @@ function NoteCard({ note, onDelete }) {
         <h3 className="font-semibold text-text-primary text-sm leading-snug group-hover:text-accent-purple-light transition-colors line-clamp-2">
           {note.title}
         </h3>
-        <div className="flex-shrink-0 mt-0.5">
+        <div className="flex-shrink-0 mt-0.5 flex items-center gap-2">
+          {canCreateNotes() && (
+            <button
+              onClick={(e) => { e.stopPropagation(); onMove(note) }}
+              className="p-1 px-1.5 hover:bg-bg-tertiary rounded text-text-muted hover:text-accent-purple-light transition-all flex items-center gap-1"
+              title="Переместить в папку"
+            >
+              <FolderPlus size={14} />
+            </button>
+          )}
           {note.is_published ? (
             <span className="flex items-center gap-1 text-xs text-green-400">
               <Globe size={12} /> <span className="hidden sm:inline">Опублик.</span>
@@ -83,19 +92,95 @@ function NoteCard({ note, onDelete }) {
   )
 }
 
+function MoveToFolderModal({ isOpen, onClose, note, folders, onConfirm }) {
+  const [selectedFolderId, setSelectedFolderId] = useState(note?.folder_id || '')
+  const [loading, setLoading] = useState(false)
+
+  if (!isOpen) return null
+
+  const handleConfirm = async () => {
+    setLoading(true)
+    try {
+      await api.patch(`/notes/${note.id}`, { folder_id: selectedFolderId === '' ? null : parseInt(selectedFolderId) })
+      toast.success('Заметка перемещена')
+      onConfirm()
+      onClose()
+    } catch {
+      toast.error('Ошибка при перемещении')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95 }}
+        animate={{ opacity: 1, scale: 1 }}
+        className="bg-bg-card border border-border rounded-2xl p-6 w-full max-w-sm shadow-2xl"
+      >
+        <h3 className="text-text-primary font-semibold text-lg mb-2">Переместить в папку</h3>
+        <p className="text-text-secondary text-sm mb-6 truncate italic">"{note?.title}"</p>
+        
+        <div className="space-y-1 max-h-60 overflow-y-auto thin-scroll mb-6 pr-1">
+          <button
+            onClick={() => setSelectedFolderId('')}
+            className={`w-full text-left px-3 py-2.5 rounded-lg text-sm transition-all ${selectedFolderId === '' ? 'bg-accent-purple/20 text-accent-purple-light border border-accent-purple/30' : 'hover:bg-bg-tertiary text-text-primary border border-transparent'}`}
+          >
+            Без папки
+          </button>
+          {folders.map(f => (
+            <button
+              key={f.id}
+              onClick={() => setSelectedFolderId(f.id)}
+              className={`w-full text-left px-3 py-2.5 rounded-lg text-sm transition-all flex items-center justify-between ${selectedFolderId === f.id ? 'bg-accent-purple/20 text-accent-purple-light border border-accent-purple/30' : 'hover:bg-bg-tertiary text-text-primary border border-transparent'}`}
+            >
+              <span>{f.name}</span>
+              {f.is_favorite && <Star size={10} fill="currentColor" className="text-amber-400" />}
+            </button>
+          ))}
+        </div>
+
+        <div className="flex gap-3 justify-end">
+          <button onClick={onClose} className="btn-secondary text-sm">Отмена</button>
+          <button
+            onClick={handleConfirm}
+            disabled={loading}
+            className="btn-primary text-sm px-6 flex items-center gap-2"
+          >
+            {loading && <div className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />}
+            Готово
+          </button>
+        </div>
+      </motion.div>
+    </div>
+  )
+}
+
 export default function NotesPage() {
+  const [searchParams, setSearchParams] = useSearchParams()
+  const folderId = searchParams.get('folder')
+
   const [notes, setNotes] = useState([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [selectedTag, setSelectedTag] = useState('')
+  const [selectedAuthor, setSelectedAuthor] = useState('')
+  const [sortBy, setSortBy] = useState('newest')
   const [tags, setTags] = useState([])
+  const [authors, setAuthors] = useState([])
   const [page, setPage] = useState(1)
   const [pagination, setPagination] = useState({ total: 0, pages: 1 })
   const [showOnlyMy, setShowOnlyMy] = useState(false)
-  const [dropdownOpen, setDropdownOpen] = useState(false)
+  const [tagDropdownOpen, setTagDropdownOpen] = useState(false)
+  const [sortDropdownOpen, setSortDropdownOpen] = useState(false)
+  const [authorDropdownOpen, setAuthorDropdownOpen] = useState(false)
 
   const { user, canCreateNotes } = useAuthStore()
   const navigate = useNavigate()
+
+  const [folders, setFolders] = useState([])
+  const [movingNote, setMovingNote] = useState(null)
 
   const fetchNotes = useCallback(async () => {
     setLoading(true)
@@ -104,8 +189,11 @@ export default function NotesPage() {
         page,
         per_page: 18,
         published_only: false,
+        sort_by: sortBy,
         ...(search && { search }),
         ...(selectedTag && { tag: selectedTag }),
+        ...(selectedAuthor && { author_id: selectedAuthor }),
+        ...(folderId && { folder_id: folderId }),
         ...(showOnlyMy && { author_id: user?.id }),
       }
       const { data } = await api.get('/notes', { params })
@@ -116,7 +204,7 @@ export default function NotesPage() {
     } finally {
       setLoading(false)
     }
-  }, [page, search, selectedTag, showOnlyMy, user?.id])
+  }, [page, search, selectedTag, selectedAuthor, sortBy, folderId, showOnlyMy, user?.id])
 
   useEffect(() => {
     fetchNotes()
@@ -124,29 +212,60 @@ export default function NotesPage() {
 
   useEffect(() => {
     api.get('/tags').then(({ data }) => setTags(data)).catch(() => { })
+    api.get('/folders').then(({ data }) => setFolders(data)).catch(() => { })
+    api.get('/users').then(({ data }) => {
+        // Упростим: берем только тех, кто может создавать заметки (учителя/админы)
+        setAuthors(data.items.filter(u => u.role?.can_create_notes))
+    }).catch(() => { })
   }, [])
 
   // Сброс страницы при фильтрации
   useEffect(() => {
     setPage(1)
-  }, [search, selectedTag, showOnlyMy])
+  }, [search, selectedTag, selectedAuthor, sortBy, folderId, showOnlyMy])
+
+  const [folderName, setFolderName] = useState('')
+
+  useEffect(() => {
+    if (folderId) {
+        api.get('/folders').then(({ data }) => {
+            const f = data.find(folder => folder.id === parseInt(folderId))
+            if (f) setFolderName(f.name)
+        })
+    } else {
+        setFolderName('')
+    }
+  }, [folderId])
 
   return (
     <div className="p-6 max-w-7xl mx-auto">
       {/* Хедер */}
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex items-center justify-between mb-8">
         <div>
-          <h2 className="text-xl font-bold text-text-primary">Учебные заметки</h2>
-          <p className="text-text-muted text-sm mt-0.5">
-            {pagination.total} {pagination.total === 1 ? 'заметка' : 'заметок'}
+          <h2 className="text-3xl font-bold text-text-primary tracking-tight">
+            Учебные заметки
+          </h2>
+          <p className="text-text-muted text-sm mt-1 flex items-center gap-2">
+            <BookOpen size={14} /> {pagination.total} {pagination.total === 1 ? 'заметка' : 'заметок'}
           </p>
         </div>
         {canCreateNotes() && (
-          <button onClick={() => navigate('/notes/new')} className="btn-primary flex items-center gap-2">
-            <Plus size={16} /> Создать
+          <button onClick={() => navigate('/notes/new')} className="btn-primary flex items-center gap-2 px-6 py-2.5 rounded-xl shadow-lg shadow-accent-purple/20">
+            <Plus size={18} /> Создать
           </button>
         )}
       </div>
+
+      <FolderSwitcher 
+        folders={folders} 
+        selectedId={folderId} 
+        labelAll="Все заметки"
+        onSelect={(id) => setSearchParams(prev => {
+          if (id) prev.set('folder', id)
+          else prev.delete('folder')
+          return prev
+        })} 
+      />
 
       {/* Фильтры */}
       <div className="flex flex-wrap gap-3 mb-6">
@@ -166,41 +285,38 @@ export default function NotesPage() {
           )}
         </div>
 
-        {/* Фильтр по тегу с кастомным Dropdown */}
+        {/* Фильтр по тегу */}
         <div className="relative">
           <button
-            onClick={() => setDropdownOpen(!dropdownOpen)}
-            className="input h-10 w-48 flex items-center justify-between text-sm bg-bg-primary"
+            onClick={() => setTagDropdownOpen(!tagDropdownOpen)}
+            className="input h-10 w-40 flex items-center justify-between text-sm bg-bg-primary"
           >
             <span className={selectedTag ? "text-text-primary" : "text-text-muted"}>
               {selectedTag || "Все теги"}
             </span>
-            <ChevronDown size={14} className="text-text-muted transition-transform" style={{ transform: dropdownOpen ? 'rotate(180deg)' : 'none' }} />
+            <ChevronDown size={14} className="text-text-muted transition-transform" style={{ transform: tagDropdownOpen ? 'rotate(180deg)' : 'none' }} />
           </button>
 
           <AnimatePresence>
-            {dropdownOpen && (
+            {tagDropdownOpen && (
               <motion.div
                 initial={{ opacity: 0, y: -4 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -4 }}
-                transition={{ duration: 0.15 }}
-                className="absolute left-0 right-0 top-full mt-2 bg-bg-secondary border border-border rounded-xl shadow-xl overflow-hidden z-20"
+                className="absolute left-0 right-0 top-full mt-2 bg-bg-secondary border border-border rounded-xl shadow-xl overflow-hidden z-20 w-56"
               >
                 <div className="max-h-60 overflow-y-auto thin-scroll py-1.5 flex flex-col">
                   <button
-                    onClick={() => { setSelectedTag(''); setDropdownOpen(false) }}
-                    className={`w-full text-left px-3.5 py-2.5 text-sm transition-colors hover:bg-bg-tertiary ${!selectedTag ? 'text-accent-purple-light bg-accent-purple/10' : 'text-text-primary'
-                      }`}
+                    onClick={() => { setSelectedTag(''); setTagDropdownOpen(false) }}
+                    className={`w-full text-left px-3.5 py-2.5 text-sm transition-colors hover:bg-bg-tertiary ${!selectedTag ? 'text-accent-purple-light bg-accent-purple/10' : 'text-text-primary'}`}
                   >
                     Все теги
                   </button>
                   {tags.map(t => (
                     <button
                       key={t.id}
-                      onClick={() => { setSelectedTag(t.name); setDropdownOpen(false) }}
-                      className={`w-full text-left px-3.5 py-2.5 text-sm transition-colors hover:bg-bg-tertiary flex items-center gap-2.5 ${selectedTag === t.name ? 'text-accent-purple-light bg-accent-purple/10' : 'text-text-primary'
-                        }`}
+                      onClick={() => { setSelectedTag(t.name); setTagDropdownOpen(false) }}
+                      className={`w-full text-left px-3.5 py-2.5 text-sm transition-colors hover:bg-bg-tertiary flex items-center gap-2.5 ${selectedTag === t.name ? 'text-accent-purple-light bg-accent-purple/10' : 'text-text-primary'}`}
                     >
                       <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: t.color }}></div>
                       <span className="truncate">{t.name}</span>
@@ -210,15 +326,100 @@ export default function NotesPage() {
               </motion.div>
             )}
           </AnimatePresence>
-
-          {/* Слой поверх страницы для закрытия при клике вне */}
-          {dropdownOpen && (
-            <div
-              className="fixed inset-0 z-10"
-              onClick={() => setDropdownOpen(false)}
-            />
-          )}
         </div>
+
+        {/* Фильтр по автору */}
+        <div className="relative">
+          <button
+            onClick={() => setAuthorDropdownOpen(!authorDropdownOpen)}
+            className="input h-10 w-40 flex items-center justify-between text-sm bg-bg-primary"
+          >
+            <span className={selectedAuthor ? "text-text-primary" : "text-text-muted"}>
+              {authors.find(a => a.id === selectedAuthor)?.name || "Все авторы"}
+            </span>
+            <ChevronDown size={14} className="text-text-muted transition-transform" style={{ transform: authorDropdownOpen ? 'rotate(180deg)' : 'none' }} />
+          </button>
+
+          <AnimatePresence>
+            {authorDropdownOpen && (
+              <motion.div
+                initial={{ opacity: 0, y: -4 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -4 }}
+                className="absolute left-0 top-full mt-2 bg-bg-secondary border border-border rounded-xl shadow-xl overflow-hidden z-20 w-56"
+              >
+                <div className="max-h-60 overflow-y-auto thin-scroll py-1.5 flex flex-col">
+                  <button
+                    onClick={() => { setSelectedAuthor(''); setAuthorDropdownOpen(false) }}
+                    className={`w-full text-left px-3.5 py-2.5 text-sm transition-colors hover:bg-bg-tertiary ${!selectedAuthor ? 'text-accent-purple-light bg-accent-purple/10' : 'text-text-primary'}`}
+                  >
+                    Все авторы
+                  </button>
+                  {authors.map(a => (
+                    <button
+                      key={a.id}
+                      onClick={() => { setSelectedAuthor(a.id); setAuthorDropdownOpen(false) }}
+                      className={`w-full text-left px-3.5 py-2.5 text-sm transition-colors hover:bg-bg-tertiary flex items-center gap-2.5 ${selectedAuthor === a.id ? 'text-accent-purple-light bg-accent-purple/10' : 'text-text-primary'}`}
+                    >
+                      <User size={14} className="text-text-muted" />
+                      <span className="truncate">{a.name}</span>
+                    </button>
+                  ))}
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+
+        {/* Сортировка */}
+        <div className="relative">
+          <button
+            onClick={() => setSortDropdownOpen(!sortDropdownOpen)}
+            className="input h-10 w-44 flex items-center justify-between text-sm bg-bg-primary"
+          >
+            <span className="text-text-primary flex items-center gap-2">
+              <Clock size={14} className="text-text-muted" />
+              {sortBy === 'newest' ? 'Сначала новые' : sortBy === 'oldest' ? 'Сначала старые' : 'По алфавиту'}
+            </span>
+            <ChevronDown size={14} className="text-text-muted" style={{ transform: sortDropdownOpen ? 'rotate(180deg)' : 'none' }} />
+          </button>
+
+          <AnimatePresence>
+            {sortDropdownOpen && (
+              <motion.div
+                initial={{ opacity: 0, y: -4 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -4 }}
+                className="absolute right-0 top-full mt-2 bg-bg-secondary border border-border rounded-xl shadow-xl overflow-hidden z-20 w-48"
+              >
+                <div className="py-1.5 flex flex-col">
+                  {[
+                    { val: 'newest', label: 'Сначала новые' },
+                    { val: 'oldest', label: 'Сначала старые' },
+                    { val: 'alphabetical', label: 'По алфавиту' }
+                  ].map(s => (
+                    <button
+                      key={s.val}
+                      onClick={() => { setSortBy(s.val); setSortDropdownOpen(false) }}
+                      className={`w-full text-left px-3.5 py-2.5 text-sm transition-colors hover:bg-bg-tertiary ${sortBy === s.val ? 'text-accent-purple-light bg-accent-purple/10' : 'text-text-primary'}`}
+                    >
+                      {s.label}
+                    </button>
+                  ))}
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+
+        {/* Слой для закрытия */}
+        {(tagDropdownOpen || sortDropdownOpen || authorDropdownOpen) && (
+          <div className="fixed inset-0 z-10" onClick={() => {
+            setTagDropdownOpen(false)
+            setSortDropdownOpen(false)
+            setAuthorDropdownOpen(false)
+          }} />
+        )}
 
         {/* Мои заметки */}
         {canCreateNotes() && (
@@ -284,7 +485,7 @@ export default function NotesPage() {
         <>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {notes.map((note) => (
-              <NoteCard key={note.id} note={note} />
+              <NoteCard key={note.id} note={note} onMove={(n) => setMovingNote(n)} />
             ))}
           </div>
 
@@ -324,6 +525,14 @@ export default function NotesPage() {
           )}
         </>
       )}
+
+      <MoveToFolderModal
+        isOpen={!!movingNote}
+        onClose={() => setMovingNote(null)}
+        note={movingNote}
+        folders={folders}
+        onConfirm={fetchNotes}
+      />
     </div>
   )
 }

@@ -26,6 +26,8 @@ async def list_notes(
     search: Optional[str] = Query(None),
     tag: Optional[str] = Query(None),
     author_id: Optional[int] = Query(None),
+    folder_id: Optional[int] = Query(None),
+    sort_by: str = Query("newest"),  # newest, oldest, alphabetical
     published_only: bool = Query(True),
     db: AsyncSession = Depends(get_db),
     current_user: Optional[User] = Depends(get_current_user_optional),
@@ -51,16 +53,26 @@ async def list_notes(
         )
     if author_id:
         query = query.where(Note.author_id == author_id)
+    if folder_id:
+        query = query.where(Note.folder_id == folder_id)
     if tag:
         query = query.join(Note.tags).where(Tag.name == tag)
 
-    # Считаем уникальные заметки (при JOIN по тегам строки дублируются — обычный count был бы завышен)
-    count_subq = query.with_only_columns(Note.id).distinct().subquery()
+    # Сортировка
+    if sort_by == "oldest":
+        query = query.order_by(Note.created_at.asc())
+    elif sort_by == "alphabetical":
+        query = query.order_by(Note.title.asc())
+    else: # newest
+        query = query.order_by(Note.created_at.desc())
+
+    # Считаем уникальные заметки (убираем сортировку для корректного count)
+    count_subq = query.order_by(None).with_only_columns(Note.id).distinct().subquery()
     count_q = select(func.count()).select_from(count_subq)
     total_result = await db.execute(count_q)
     total = total_result.scalar() or 0
 
-    query = query.order_by(Note.updated_at.desc()).offset((page - 1) * per_page).limit(per_page)
+    query = query.offset((page - 1) * per_page).limit(per_page)
     result = await db.execute(query)
     notes = result.scalars().unique().all()
 
@@ -107,6 +119,7 @@ async def create_note(
         content=data.content,
         is_published=data.is_published,
         author_id=current_user.id,
+        folder_id=data.folder_id,
     )
     db.add(note)
     await db.flush()
@@ -192,6 +205,8 @@ async def update_note(
         if not current_user.role.can_publish_notes and not current_user.role.can_manage_users:
             raise HTTPException(403, "Нет прав для публикации")
         note.is_published = data.is_published
+    if data.folder_id is not None:
+        note.folder_id = data.folder_id
     if data.tag_ids is not None:
         tags = (await db.execute(select(Tag).where(Tag.id.in_(data.tag_ids)))).scalars().all()
         note.tags = list(tags)

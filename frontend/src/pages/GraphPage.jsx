@@ -1,11 +1,11 @@
 import { useState, useEffect, useRef, useMemo, useCallback, Suspense } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import { OrbitControls, Text, Billboard, Sphere, Line, Stars } from '@react-three/drei'
 import * as THREE from 'three'
 import { motion, AnimatePresence } from 'framer-motion'
 import api from '@/utils/api'
-import { PageLoader } from '@/components/ui/Common'
+import { PageLoader, FolderSwitcher } from '@/components/ui/Common'
 import { Network, Search, Layers, X, Eye } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { useAuthStore } from '@/store/authStore'
@@ -324,15 +324,23 @@ function computePositions(nodes, edges) {
   return positions
 }
 
-// ─── Main Component ───────────────────────────────────────────────────────────
 export default function GraphPage() {
+  const [searchParams, setSearchParams] = useSearchParams()
+  const folderId = searchParams.get('folder')
+
   const [graphData, setGraphData] = useState({ nodes: [], edges: [] })
   const [loading, setLoading] = useState(true)
+  const [folders, setFolders] = useState([])
   const [selectedNode, setSelectedNode] = useState(null)
   const [hoveredNode, setHoveredNode] = useState(null)
   const [search, setSearch] = useState('')
   const [filterTag, setFilterTag] = useState('')
   const [showPanel, setShowPanel] = useState(true)
+  const [folderName, setFolderName] = useState('')
+
+  useEffect(() => {
+    api.get('/folders').then(({ data }) => setFolders(data)).catch(() => {})
+  }, [])
 
   // Link creation mode
   const [isLinkMode, setIsLinkMode] = useState(false)
@@ -342,11 +350,21 @@ export default function GraphPage() {
   const navigate = useNavigate()
 
   useEffect(() => {
-    api.get('/graph')
+    setLoading(true)
+    api.get('/graph', { params: { folder_id: folderId } })
       .then(({ data }) => setGraphData(data))
       .catch(() => toast.error('Не удалось загрузить граф'))
       .finally(() => setLoading(false))
-  }, [])
+      
+    if (folderId) {
+        api.get('/folders').then(({ data }) => {
+            const f = data.find(folder => folder.id === parseInt(folderId))
+            if (f) setFolderName(f.name)
+        })
+    } else {
+        setFolderName('')
+    }
+  }, [folderId])
 
   const filteredNodes = useMemo(() => {
     return graphData.nodes.filter((n) => {
@@ -440,6 +458,20 @@ export default function GraphPage() {
 
   return (
     <div className="h-full flex relative overflow-hidden bg-bg-primary">
+      {/* Folder Switcher Over Graph */}
+      <div className="absolute top-6 left-1/2 -translate-x-1/2 z-20 w-auto max-w-[90vw]">
+        <FolderSwitcher
+          folders={folders}
+          selectedId={folderId}
+          labelAll="Общий граф"
+          onSelect={(id) => setSearchParams(prev => {
+            if (id) prev.set('folder', id)
+            else prev.delete('folder')
+            return prev
+          })}
+        />
+      </div>
+
       {/* 3D Canvas */}
       <div className="flex-1 relative">
         <Canvas
@@ -506,7 +538,8 @@ export default function GraphPage() {
             {/* Заголовок */}
             <div className="p-4 border-b border-border flex items-center justify-between">
               <h3 className="font-semibold text-text-primary flex items-center gap-2">
-                <Layers size={16} className="text-accent-purple-light" /> Граф знаний
+                <Layers size={16} className="text-accent-purple-light" /> 
+                {folderName ? `Граф: ${folderName}` : 'Граф знаний'}
               </h3>
               <div className="flex items-center gap-1">
                 {isLoggedIn() && (isAdmin() || canCreateNotes()) && (
