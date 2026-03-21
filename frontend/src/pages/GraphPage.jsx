@@ -5,7 +5,7 @@ import { OrbitControls, Text, Billboard, Sphere, Line, Stars } from '@react-thre
 import * as THREE from 'three'
 import { motion, AnimatePresence } from 'framer-motion'
 import api from '@/utils/api'
-import { PageLoader, FolderSwitcher } from '@/components/ui/Common'
+import { PageLoader, FolderSwitcher, EmptyState } from '@/components/ui/Common'
 import { Network, Search, Layers, X, Eye } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { useAuthStore } from '@/store/authStore'
@@ -455,6 +455,42 @@ export default function GraphPage() {
   }
 
   if (loading) return <PageLoader />
+
+  if (graphData.nodes.length === 0) {
+    return (
+      <div className="h-full flex flex-col relative bg-bg-primary overflow-hidden">
+        {/* Switcher is essential even in empty state to allow navigation back */}
+        <div className="absolute top-6 left-1/2 -translate-x-1/2 z-20 w-auto max-w-[90vw]">
+          <FolderSwitcher
+            folders={folders}
+            selectedId={folderId}
+            labelAll="Общий граф"
+            onSelect={(id) => setSearchParams(prev => {
+              if (id) prev.set('folder', id)
+              else prev.delete('folder')
+              return prev
+            })}
+          />
+        </div>
+
+        <div className="flex-1 flex items-center justify-center p-6 mt-16">
+          <EmptyState
+            icon={Network}
+            title={folderName ? `В папке "${folderName}" пока пусто` : "Граф пуст"}
+            description="Добавьте или опубликуйте хотя бы одну заметку, чтобы увидеть связи в этом разделе."
+            action={
+              <div className="flex gap-4">
+                <button onClick={() => navigate('/notes')} className="btn-secondary">К заметкам</button>
+                {canCreateNotes() && (
+                  <button onClick={() => navigate('/notes/new')} className="btn-primary">Создать заметку</button>
+                )}
+              </div>
+            }
+          />
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="h-full flex relative overflow-hidden bg-bg-primary">
