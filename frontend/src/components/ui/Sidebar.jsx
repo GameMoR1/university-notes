@@ -50,7 +50,7 @@ function FolderList({ folders, setFolders }) {
           <div className="flex items-center gap-0.5 opacity-0 group-hover/folder:opacity-100 transition-all">
             <button 
                 onClick={(e) => toggleFavorite(folder.id, e)}
-                className={`p-1 hover:bg-star/10 rounded transition-all ${folder.is_favorite ? 'text-amber-400 opacity-100' : 'text-text-muted hover:text-amber-400'}`}
+                className={`p-1 hover:bg-amber-500/10 rounded transition-all ${folder.is_favorite ? 'text-amber-400 opacity-100' : 'text-text-muted hover:text-amber-400'}`}
             >
                 <Star size={12} fill={folder.is_favorite ? "currentColor" : "none"} />
             </button>

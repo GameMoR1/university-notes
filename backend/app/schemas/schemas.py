@@ -239,8 +239,39 @@ class StatsOut(BaseModel):
     published_notes: int
     total_comments: int
     total_tags: int
+    total_files: int = 0
+    total_folders: int = 0
+    total_views: int = 0
     notes_by_role: dict
     recent_logs: List[dict]
+
+
+class ActivityHistory(BaseModel):
+    date: str
+    registrations: int
+    notes_created: int
+    comments: int
+
+
+class SystemHealth(BaseModel):
+    status: str
+    database: dict
+    storage: dict
+    system: dict
+    cpu: dict = {}
+    memory: dict = {}
+    swap: dict = {}
+    disk: dict = {}
+    network: dict = {}
+    processes: dict = {}
+
+
+class PaginatedLogs(BaseModel):
+    items: List[dict]
+    total: int
+    page: int
+    per_page: int
+    pages: int
 
 
 # ─── Пагинация ────────────────────────────────────────────────────────────────
@@ -258,6 +289,54 @@ class PaginatedUsers(BaseModel):
     page: int
     per_page: int
     pages: int
+
+
+# ─── Файлы ────────────────────────────────────────────────────────────────────
+class FileOut(BaseModel):
+    id: int
+    original_name: str
+    stored_path: str
+    mime_type: str
+    file_size: int
+    created_at: datetime
+    note_id: int
+    author_id: int
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class FileUploadResponse(BaseModel):
+    id: int
+    original_name: str
+    mime_type: str
+    file_size: int
+    message: str = "Файл загружен"
+
+
+# ─── Настройки сайта ──────────────────────────────────────────────────────────
+class SiteSettingOut(BaseModel):
+    id: int
+    key: str
+    value: str
+    description: Optional[str] = None
+    updated_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class SiteSettingCreate(BaseModel):
+    key: str
+    value: str = ""
+    description: Optional[str] = None
+
+
+class SiteSettingUpdate(BaseModel):
+    value: str
+    description: Optional[str] = None
+
+
+class SiteSettingsMap(BaseModel):
+    settings: dict[str, str]
 
 
 # ─── Ответы ───────────────────────────────────────────────────────────────────

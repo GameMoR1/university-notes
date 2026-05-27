@@ -1,17 +1,37 @@
 import { useState, useEffect } from 'react'
-import { motion } from 'framer-motion'
+import { motion, AnimatePresence } from 'framer-motion'
 import { useAuthStore } from '@/store/authStore'
 import api from '@/utils/api'
 import { PageLoader, CustomSelect } from '@/components/ui/Common'
+import { BarChart, LineChart } from '@/components/ui/Charts'
 import toast from 'react-hot-toast'
 import {
   Users, BookOpen, MessageSquare, Tag, BarChart3, Shield,
   Search, ChevronDown, Check, Ban, UserCog, Trash2, Plus, X,
-  Activity, Clock, Globe, Lock, RefreshCw
+  Activity, Clock, Globe, Lock, RefreshCw, Settings, Save,
+  Eye, EyeOff, Server, HardDrive, Wifi, Cpu, Database, Folder,
+  ChevronLeft, ChevronRight
 } from 'lucide-react'
 import { formatDistanceToNow } from 'date-fns'
 import { ru } from 'date-fns/locale'
-import { motion as m, AnimatePresence } from 'framer-motion'
+
+function formatBytes(bytes) {
+  if (!bytes || bytes === 0) return '0 B'
+  const units = ['B', 'KB', 'MB', 'GB', 'TB']
+  const i = Math.floor(Math.log(bytes) / Math.log(1024))
+  return (bytes / Math.pow(1024, i)).toFixed(1) + ' ' + units[i]
+}
+
+function formatUptime(seconds) {
+  const d = Math.floor(seconds / 86400)
+  const h = Math.floor((seconds % 86400) / 3600)
+  const m = Math.floor((seconds % 3600) / 60)
+  const parts = []
+  if (d) parts.push(d + 'д')
+  if (h) parts.push(h + 'ч')
+  if (m) parts.push(m + 'мин')
+  return parts.join(' ') || '< 1мин'
+}
 
 function StatCard({ icon: Icon, label, value, color = 'purple', sub }) {
   const colors = {
@@ -45,6 +65,18 @@ export default function AdminPage() {
   const [showRoleForm, setShowRoleForm] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
 
+  const [siteSettings, setSiteSettings] = useState([])
+  const [settingsDirty, setSettingsDirty] = useState({})
+  const [settingsSaving, setSettingsSaving] = useState(false)
+
+  const [health, setHealth] = useState(null)
+  const [activity, setActivity] = useState([])
+
+  const [logsPage, setLogsPage] = useState(1)
+  const [logsData, setLogsData] = useState({ items: [], total: 0, pages: 1 })
+  const [logsAction, setLogsAction] = useState('')
+  const [logsSearch, setLogsSearch] = useState('')
+
   const loadStats = async () => {
     try {
       const { data } = await api.get('/admin/stats')
@@ -69,14 +101,49 @@ export default function AdminPage() {
     } catch {}
   }
 
+  const loadSettings = async () => {
+    try {
+      const { data } = await api.get('/settings')
+      setSiteSettings(data)
+      const dirty = {}
+      data.forEach(s => { dirty[s.key] = s.value })
+      setSettingsDirty(dirty)
+    } catch {}
+  }
+
+  const loadHealth = async () => {
+    try {
+      const { data } = await api.get('/admin/health')
+      setHealth(data)
+    } catch {}
+  }
+
+  const loadActivity = async () => {
+    try {
+      const { data } = await api.get('/admin/activity-history', { params: { days: 14 } })
+      setActivity(data)
+    } catch {}
+  }
+
+  const loadLogs = async () => {
+    try {
+      const params = { page: logsPage, per_page: 20 }
+      if (logsAction) params.action = logsAction
+      if (logsSearch) params.search = logsSearch
+      const { data } = await api.get('/admin/logs', { params })
+      setLogsData(data)
+    } catch {}
+  }
+
   const loadAll = async () => {
     setLoading(true)
-    await Promise.all([loadStats(), loadUsers(), loadRoles()])
+    await Promise.all([loadStats(), loadUsers(), loadRoles(), loadSettings(), loadHealth(), loadActivity(), loadLogs()])
     setLoading(false)
   }
 
   useEffect(() => { loadAll() }, [])
   useEffect(() => { if (!loading) loadUsers() }, [usersPage, usersSearch])
+  useEffect(() => { if (!loading) loadLogs() }, [logsPage, logsAction, logsSearch])
 
   const handleRefresh = async () => {
     setRefreshing(true)
@@ -140,13 +207,64 @@ export default function AdminPage() {
     }
   }
 
+  const handleSaveSettings = async () => {
+    setSettingsSaving(true)
+    try {
+      await api.put('/admin/settings/bulk', { settings: settingsDirty })
+      toast.success('Настройки сохранены')
+      loadSettings()
+    } catch (err) {
+      toast.error(err.response?.data?.detail || 'Ошибка сохранения')
+    } finally {
+      setSettingsSaving(false)
+    }
+  }
+
+  const SETTING_LABELS = {
+    site_name: 'Название сайта',
+    site_description: 'Описание сайта',
+    allow_registration: 'Разрешить регистрацию',
+    default_role: 'Роль по умолчанию',
+    maintenance_mode: 'Режим обслуживания',
+    max_notes_per_page: 'Заметок на странице',
+    allow_comments: 'Разрешить комментарии',
+    allow_guest_view: 'Гостевой просмотр',
+    theme: 'Тема оформления',
+  }
+
+  const SETTING_DESCRIPTIONS = {
+    site_name: 'Отображается в заголовке и на странице входа',
+    site_description: 'Краткое описание системы',
+    allow_registration: 'Разрешить новым пользователям регистрироваться самостоятельно',
+    default_role: 'Роль, назначаемая новым пользователям',
+    maintenance_mode: 'Включить режим обслуживания (только админы могут входить)',
+    max_notes_per_page: 'Максимум заметок на одной странице списка',
+    allow_comments: 'Разрешить добавление комментариев к заметкам',
+    allow_guest_view: 'Разрешить просмотр опубликованных заметок без входа',
+    theme: 'Тема оформления интерфейса',
+  }
+
+  const SETTING_TYPES = {
+    site_name: 'text',
+    site_description: 'text',
+    allow_registration: 'boolean',
+    default_role: 'select',
+    maintenance_mode: 'boolean',
+    max_notes_per_page: 'number',
+    allow_comments: 'boolean',
+    allow_guest_view: 'boolean',
+    theme: 'select',
+  }
+
   if (loading) return <PageLoader />
 
   const TABS = [
     { id: 'stats', icon: BarChart3, label: 'Статистика' },
+    { id: 'monitoring', icon: Activity, label: 'Мониторинг' },
     { id: 'users', icon: Users, label: 'Пользователи' },
     { id: 'roles', icon: UserCog, label: 'Роли' },
-    { id: 'logs', icon: Activity, label: 'Логи' },
+    { id: 'settings', icon: Settings, label: 'Настройки' },
+    { id: 'logs', icon: Clock, label: 'Логи' },
   ]
 
   return (
@@ -171,18 +289,18 @@ export default function AdminPage() {
       </div>
 
       {/* Табы */}
-      <div className="flex gap-2 mb-6 bg-bg-secondary p-1.5 rounded-xl border border-border w-fit">
+      <div className="grid grid-cols-6 gap-1 mb-6 bg-bg-secondary p-1.5 rounded-xl border border-border">
         {TABS.map(({ id, icon: Icon, label }) => (
           <button
             key={id}
             onClick={() => setActiveTab(id)}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+            className={`flex items-center justify-center gap-1.5 px-2 py-2 rounded-lg text-xs font-medium transition-all ${
               activeTab === id
                 ? 'bg-accent-purple text-white shadow-lg shadow-accent-purple/25'
                 : 'text-text-muted hover:text-text-primary hover:bg-bg-tertiary'
             }`}
           >
-            <Icon size={15} /> {label}
+            <Icon size={13} /> {label}
           </button>
         ))}
       </div>
@@ -194,8 +312,11 @@ export default function AdminPage() {
             <StatCard icon={Users} label="Пользователей" value={stats.total_users} color="purple" />
             <StatCard icon={BookOpen} label="Заметок" value={stats.total_notes} color="blue"
               sub={`${stats.published_notes} опубликовано`} />
+            <StatCard icon={Eye} label="Просмотров" value={stats.total_views} color="blue" />
             <StatCard icon={MessageSquare} label="Комментариев" value={stats.total_comments} color="green" />
             <StatCard icon={Tag} label="Тегов" value={stats.total_tags} color="amber" />
+            <StatCard icon={HardDrive} label="Файлов" value={stats.total_files} color="amber" />
+            <StatCard icon={Folder} label="Папок" value={stats.total_folders} color="green" />
           </div>
 
           {/* Распределение по ролям */}
@@ -224,6 +345,240 @@ export default function AdminPage() {
                   </div>
                 )
               })}
+            </div>
+          </div>
+        </motion.div>
+      )}
+
+      {/* Мониторинг */}
+      {activeTab === 'monitoring' && health && (
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6">
+            <div className={`p-5 rounded-2xl border bg-gradient-to-br ${health.status === 'ok' ? 'from-green-500/20 to-green-500/5 border-green-500/30' : 'from-red-500/20 to-red-500/5 border-red-500/30'}`}>
+              <div className="flex items-center justify-between mb-3">
+                <Server size={20} className={health.status === 'ok' ? 'text-green-400' : 'text-red-400'} />
+                <span className={`text-sm font-bold ${health.status === 'ok' ? 'text-green-400' : 'text-red-400'}`}>
+                  {health.status === 'ok' ? 'Всё в порядке' : 'Есть проблемы'}
+                </span>
+              </div>
+              <div className="text-sm text-text-muted">Общее состояние системы</div>
+            </div>
+
+            <div className={`p-5 rounded-2xl border bg-gradient-to-br ${health.database.status === 'ok' ? 'from-blue-500/20 to-blue-500/5 border-blue-500/30' : 'from-red-500/20 to-red-500/5 border-red-500/30'}`}>
+              <div className="flex items-center justify-between mb-3">
+                <Database size={20} className={health.database.status === 'ok' ? 'text-blue-400' : 'text-red-400'} />
+                <span className={`text-sm font-bold ${health.database.status === 'ok' ? 'text-blue-400' : 'text-red-400'}`}>
+                  {health.database.status === 'ok' ? 'Подключена' : 'Ошибка'}
+                </span>
+              </div>
+              <div className="text-sm text-text-muted">База данных ({health.database.type})</div>
+              {health.database.error && <div className="text-xs text-red-400 mt-1">{health.database.error}</div>}
+            </div>
+
+            <div className={`p-5 rounded-2xl border bg-gradient-to-br ${health.storage.status === 'ok' ? 'from-amber-500/20 to-amber-500/5 border-amber-500/30' : 'from-red-500/20 to-red-500/5 border-red-500/30'}`}>
+              <div className="flex items-center justify-between mb-3">
+                <HardDrive size={20} className={health.storage.status === 'ok' ? 'text-amber-400' : 'text-red-400'} />
+                <span className={`text-sm font-bold ${health.storage.status === 'ok' ? 'text-amber-400' : 'text-red-400'}`}>
+                  {health.storage.status === 'ok' ? 'Доступно' : health.storage.status === 'degraded' ? 'Деградация' : 'Ошибка'}
+                </span>
+              </div>
+              <div className="text-sm text-text-muted">Файловое хранилище ({health.storage.type})</div>
+              {health.storage.error && <div className="text-xs text-red-400 mt-1">{health.storage.error}</div>}
+            </div>
+          </div>
+
+          {/* Системные метрики */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6">
+            <div className="card">
+              <h3 className="font-semibold text-text-primary mb-4 flex items-center gap-2">
+                <Cpu size={16} className="text-accent-purple-light" /> CPU
+              </h3>
+              <div className="space-y-3">
+                <div>
+                  <div className="flex items-center justify-between text-xs text-text-muted mb-1">
+                    <span>Загрузка</span>
+                    <span className="font-mono text-text-primary">{health.cpu.percent}%</span>
+                  </div>
+                  <div className="h-2 bg-bg-tertiary rounded-full overflow-hidden">
+                    <div className="h-full rounded-full bg-accent-purple transition-all" style={{ width: `${Math.min(health.cpu.percent, 100)}%` }} />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-2 text-xs">
+                  <div className="bg-bg-tertiary rounded-lg p-2">
+                    <div className="text-text-muted">Ядер</div>
+                    <div className="text-text-primary font-mono">{health.cpu.count} физ. / {health.cpu.count_logical} лог.</div>
+                  </div>
+                  <div className="bg-bg-tertiary rounded-lg p-2">
+                    <div className="text-text-muted">Частота</div>
+                    <div className="text-text-primary font-mono">{Math.round(health.cpu.frequency_current)} / {Math.round(health.cpu.frequency_max)} МГц</div>
+                  </div>
+                  {health.cpu.load_1 !== null && (
+                    <div className="bg-bg-tertiary rounded-lg p-2 col-span-2">
+                      <div className="text-text-muted">Load Average</div>
+                      <div className="text-text-primary font-mono">{health.cpu.load_1} / {health.cpu.load_5} / {health.cpu.load_15}</div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <div className="card">
+              <h3 className="font-semibold text-text-primary mb-4 flex items-center gap-2">
+                <Database size={16} className="text-accent-purple-light" /> Память
+              </h3>
+              <div className="space-y-4">
+                <div>
+                  <div className="flex items-center justify-between text-xs text-text-muted mb-1">
+                    <span>RAM</span>
+                    <span className="font-mono text-text-primary">{health.memory.percent}%</span>
+                  </div>
+                  <div className="h-2 bg-bg-tertiary rounded-full overflow-hidden">
+                    <div className="h-full rounded-full transition-all" style={{ width: `${Math.min(health.memory.percent, 100)}%`, backgroundColor: health.memory.percent > 80 ? '#ef4444' : health.memory.percent > 50 ? '#f59e0b' : '#10b981' }} />
+                  </div>
+                  <div className="flex justify-between text-[10px] text-text-muted mt-1">
+                    <span>{formatBytes(health.memory.used)}</span>
+                    <span>{formatBytes(health.memory.total)}</span>
+                  </div>
+                </div>
+                <div>
+                  <div className="flex items-center justify-between text-xs text-text-muted mb-1">
+                    <span>Swap</span>
+                    <span className="font-mono text-text-primary">{health.swap.percent}%</span>
+                  </div>
+                  <div className="h-2 bg-bg-tertiary rounded-full overflow-hidden">
+                    <div className="h-full rounded-full transition-all" style={{ width: `${Math.min(health.swap.percent, 100)}%`, backgroundColor: health.swap.percent > 50 ? '#ef4444' : '#f59e0b' }} />
+                  </div>
+                  {health.swap.total > 0 && (
+                    <div className="flex justify-between text-[10px] text-text-muted mt-1">
+                      <span>{formatBytes(health.swap.used)}</span>
+                      <span>{formatBytes(health.swap.total)}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <div className="card">
+              <h3 className="font-semibold text-text-primary mb-4 flex items-center gap-2">
+                <HardDrive size={16} className="text-accent-purple-light" /> Диск
+              </h3>
+              <div className="space-y-3">
+                <div>
+                  <div className="flex items-center justify-between text-xs text-text-muted mb-1">
+                    <span>Использование</span>
+                    <span className="font-mono text-text-primary">{health.disk.percent}%</span>
+                  </div>
+                  <div className="h-2 bg-bg-tertiary rounded-full overflow-hidden">
+                    <div className="h-full rounded-full transition-all" style={{ width: `${Math.min(health.disk.percent, 100)}%`, backgroundColor: health.disk.percent > 80 ? '#ef4444' : health.disk.percent > 50 ? '#f59e0b' : '#10b981' }} />
+                  </div>
+                  <div className="flex justify-between text-[10px] text-text-muted mt-1">
+                    <span>{formatBytes(health.disk.used)}</span>
+                    <span>{formatBytes(health.disk.total)}</span>
+                  </div>
+                </div>
+                {health.disk.read_bytes > 0 && (
+                  <div className="grid grid-cols-2 gap-2 text-xs">
+                    <div className="bg-bg-tertiary rounded-lg p-2">
+                      <div className="text-text-muted">Чтение</div>
+                      <div className="text-text-primary font-mono">{formatBytes(health.disk.read_bytes)}</div>
+                    </div>
+                    <div className="bg-bg-tertiary rounded-lg p-2">
+                      <div className="text-text-muted">Запись</div>
+                      <div className="text-text-primary font-mono">{formatBytes(health.disk.write_bytes)}</div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Доп. метрики: сеть / процессы / аптайм */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6">
+            <div className="card">
+              <h3 className="font-semibold text-text-primary mb-4 flex items-center gap-2">
+                <Wifi size={16} className="text-accent-purple-light" /> Сеть
+              </h3>
+              {health.network.bytes_sent > 0 ? (
+                <div className="grid grid-cols-2 gap-2 text-xs">
+                  <div className="bg-bg-tertiary rounded-lg p-2">
+                    <div className="text-text-muted">Отправлено</div>
+                    <div className="text-text-primary font-mono">{formatBytes(health.network.bytes_sent)}</div>
+                  </div>
+                  <div className="bg-bg-tertiary rounded-lg p-2">
+                    <div className="text-text-muted">Получено</div>
+                    <div className="text-text-primary font-mono">{formatBytes(health.network.bytes_recv)}</div>
+                  </div>
+                </div>
+              ) : (
+                <div className="text-xs text-text-muted py-4 text-center">Нет данных</div>
+              )}
+            </div>
+
+            <div className="card">
+              <h3 className="font-semibold text-text-primary mb-4 flex items-center gap-2">
+                <Activity size={16} className="text-accent-purple-light" /> Процессы
+              </h3>
+              <div className="flex items-baseline gap-2">
+                <span className="text-3xl font-bold text-text-primary font-mono">{health.processes.total}</span>
+                <span className="text-xs text-text-muted">активных процессов</span>
+              </div>
+              <div className="mt-3 text-xs text-text-muted">
+                Python {health.system.python_version}
+              </div>
+            </div>
+
+            <div className="card">
+              <h3 className="font-semibold text-text-primary mb-4 flex items-center gap-2">
+                <Server size={16} className="text-accent-purple-light" /> Система
+              </h3>
+              <div className="space-y-2 text-xs">
+                <div className="flex justify-between">
+                  <span className="text-text-muted">Хост</span>
+                  <span className="text-text-primary font-mono">{health.system.hostname}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-text-muted">Аптайм</span>
+                  <span className="text-text-primary font-mono">{formatUptime(health.system.uptime_seconds)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-text-muted">Запуск</span>
+                  <span className="text-text-primary font-mono text-[10px]">{new Date(health.system.boot_time).toLocaleString('ru-RU')}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Графики активности */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
+            <div className="card">
+              <h3 className="font-semibold text-text-primary mb-4 text-sm">Активность за 14 дней</h3>
+              <div className="w-full overflow-hidden">
+                {activity.length > 0 ? (
+                  <BarChart
+                    data={activity}
+                    keys={['notes_created', 'comments', 'registrations']}
+                    labels={['Заметки', 'Комментарии', 'Регистрации']}
+                    height={140}
+                  />
+                ) : (
+                  <div className="text-sm text-text-muted py-8 text-center">Нет данных за последние 14 дней</div>
+                )}
+              </div>
+            </div>
+            <div className="card">
+              <h3 className="font-semibold text-text-primary mb-4 text-sm">Создание заметок</h3>
+              <div className="w-full overflow-hidden">
+              {activity.length > 0 ? (
+                <LineChart
+                  data={activity}
+                  keys={['notes_created']}
+                  labels={['Заметки']}
+                  height={140}
+                />
+              ) : (
+                <div className="text-sm text-text-muted py-8 text-center">Нет данных за последние 14 дней</div>
+              )}
+              </div>
             </div>
           </div>
         </motion.div>
@@ -400,15 +755,103 @@ export default function AdminPage() {
         </motion.div>
       )}
 
-      {/* Логи */}
-      {activeTab === 'logs' && stats && (
+      {/* Настройки */}
+      {activeTab === 'settings' && (
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-          <h3 className="font-semibold text-text-primary mb-4 flex items-center gap-2">
-            <Activity size={16} className="text-accent-purple-light" /> Журнал активности (последние 20)
-          </h3>
-          <div className="space-y-2">
-            {stats.recent_logs.map((log) => (
-              <div key={log.id} className="flex items-start gap-3 p-3 bg-bg-card border border-border rounded-xl">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="font-semibold text-text-primary flex items-center gap-2">
+              <Settings size={16} className="text-accent-purple-light" /> Настройки сайта
+            </h3>
+            <button
+              onClick={handleSaveSettings}
+              disabled={settingsSaving}
+              className="btn-primary text-sm flex items-center gap-2"
+            >
+              <Save size={14} />
+              {settingsSaving ? 'Сохранение...' : 'Сохранить всё'}
+            </button>
+          </div>
+
+          <div className="space-y-3">
+            {siteSettings.map((setting) => {
+              const key = setting.key
+              const label = SETTING_LABELS[key] || key
+              const desc = SETTING_DESCRIPTIONS[key] || ''
+              const type = SETTING_TYPES[key] || 'text'
+              const isBool = type === 'boolean'
+              const value = settingsDirty[key] ?? setting.value
+
+              return (
+                <div key={key} className="card">
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="flex-1 min-w-0">
+                      <label className="text-sm font-medium text-text-primary">{label}</label>
+                      {desc && <p className="text-xs text-text-muted mt-0.5">{desc}</p>}
+                    </div>
+
+                    {isBool ? (
+                      <button
+                        onClick={() => setSettingsDirty(prev => ({ ...prev, [key]: value === 'true' ? 'false' : 'true' }))}
+                        className={`relative w-12 h-7 rounded-full transition-all flex-shrink-0 ${value === 'true' ? 'bg-accent-purple' : 'bg-bg-tertiary border border-border'}`}
+                      >
+                        <motion.div
+                          animate={{ x: value === 'true' ? 24 : 2 }}
+                          className="w-5 h-5 bg-white rounded-full shadow-md absolute top-1 left-0.5"
+                          transition={{ type: "spring", stiffness: 500, damping: 30 }}
+                        />
+                      </button>
+                    ) : type === 'select' ? (
+                      <CustomSelect
+                        value={value}
+                        onChange={(v) => setSettingsDirty(prev => ({ ...prev, [key]: v }))}
+                        options={key === 'default_role'
+                          ? [{ value: 'student', label: 'Студент' }, { value: 'teacher', label: 'Преподаватель' }]
+                          : [{ value: 'dark', label: 'Тёмная' }]
+                        }
+                        className="w-44"
+                      />
+                    ) : (
+                      <input
+                        type={type}
+                        className="input w-44 text-sm h-9"
+                        value={value}
+                        onChange={(e) => setSettingsDirty(prev => ({ ...prev, [key]: e.target.value }))}
+                      />
+                    )}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </motion.div>
+      )}
+
+      {/* Логи */}
+      {activeTab === 'logs' && (
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="font-semibold text-text-primary flex items-center gap-2">
+              <Clock size={16} className="text-accent-purple-light" /> Журнал активности
+            </h3>
+            <div className="flex items-center gap-2">
+              <input
+                className="input text-xs h-9 w-36"
+                placeholder="Фильтр по действию..."
+                value={logsAction}
+                onChange={(e) => { setLogsAction(e.target.value); setLogsPage(1) }}
+              />
+              <input
+                className="input text-xs h-9 w-48"
+                placeholder="Поиск по логам..."
+                value={logsSearch}
+                onChange={(e) => { setLogsSearch(e.target.value); setLogsPage(1) }}
+              />
+            </div>
+          </div>
+
+          <div className="space-y-1.5">
+            {logsData.items.map((log) => (
+              <div key={log.id} className="flex items-start gap-3 p-3 bg-bg-card border border-border rounded-xl hover:border-border-light transition-all">
                 <div className="w-2 h-2 rounded-full bg-accent-purple mt-1.5 flex-shrink-0" />
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
@@ -434,6 +877,46 @@ export default function AdminPage() {
                 </div>
               </div>
             ))}
+            {logsData.items.length === 0 && (
+              <div className="text-sm text-text-muted py-8 text-center">Логов не найдено</div>
+            )}
+          </div>
+
+          {/* Пагинация логов */}
+          {logsData.pages > 1 && (
+            <div className="flex items-center justify-center gap-2 mt-4">
+              <button
+                onClick={() => setLogsPage(p => Math.max(1, p - 1))}
+                disabled={logsPage <= 1}
+                className="p-2 rounded-lg bg-bg-tertiary border border-border text-text-muted hover:text-text-primary disabled:opacity-30"
+              >
+                <ChevronLeft size={14} />
+              </button>
+              {Array.from({ length: Math.min(logsData.pages, 10) }, (_, i) => {
+                const start = Math.max(1, logsPage - 5)
+                const p = start + i
+                if (p > logsData.pages) return null
+                return (
+                  <button
+                    key={p}
+                    onClick={() => setLogsPage(p)}
+                    className={`w-8 h-8 rounded-lg text-sm ${logsPage === p ? 'bg-accent-purple text-white' : 'bg-bg-tertiary text-text-muted border border-border hover:border-border-light'}`}
+                  >
+                    {p}
+                  </button>
+                )
+              })}
+              <button
+                onClick={() => setLogsPage(p => Math.min(logsData.pages, p + 1))}
+                disabled={logsPage >= logsData.pages}
+                className="p-2 rounded-lg bg-bg-tertiary border border-border text-text-muted hover:text-text-primary disabled:opacity-30"
+              >
+                <ChevronRight size={14} />
+              </button>
+            </div>
+          )}
+          <div className="text-xs text-text-muted text-center mt-2">
+            Всего записей: {logsData.total}
           </div>
         </motion.div>
       )}

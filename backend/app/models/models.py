@@ -123,6 +123,7 @@ class Note(Base):
     folder: Mapped[Optional["Folder"]] = relationship("Folder", back_populates="notes")
 
     tags: Mapped[List["Tag"]] = relationship("Tag", secondary="note_tags", back_populates="notes")
+    files: Mapped[List["File"]] = relationship("File", back_populates="note", cascade="all, delete-orphan")
     comments: Mapped[List["Comment"]] = relationship(
         "Comment", back_populates="note", cascade="all, delete-orphan",
         order_by="Comment.created_at"
@@ -172,3 +173,32 @@ class ActivityLog(Base):
 
     user_id: Mapped[Optional[int]] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     user: Mapped[Optional["User"]] = relationship("User", back_populates="logs")
+
+
+# ─── Файлы ─────────────────────────────────────────────────────────────────────
+class File(Base):
+    __tablename__ = "files"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    original_name: Mapped[str] = mapped_column(String(500), nullable=False)
+    stored_path: Mapped[str] = mapped_column(String(500), nullable=False)
+    mime_type: Mapped[str] = mapped_column(String(200), default="application/octet-stream")
+    file_size: Mapped[int] = mapped_column(Integer, default=0)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+    note_id: Mapped[int] = mapped_column(ForeignKey("notes.id", ondelete="CASCADE"), nullable=False)
+    note: Mapped["Note"] = relationship("Note", back_populates="files")
+
+    author_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    author: Mapped["User"] = relationship("User")
+
+
+# ─── Настройки сайта ──────────────────────────────────────────────────────────
+class SiteSetting(Base):
+    __tablename__ = "site_settings"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    key: Mapped[str] = mapped_column(String(100), unique=True, nullable=False, index=True)
+    value: Mapped[str] = mapped_column(Text, default="")
+    description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)

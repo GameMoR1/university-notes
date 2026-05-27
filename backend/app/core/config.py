@@ -51,6 +51,14 @@ class Settings(BaseSettings):
     ADMIN_PASSWORD: str = "Admin1234!"
     ADMIN_NAME: str = "Администратор"
 
+    # MinIO (S3-совместимое хранилище файлов)
+    MINIO_ENDPOINT: str = "localhost:9000"
+    MINIO_ACCESS_KEY: str = "minioadmin"
+    MINIO_SECRET_KEY: str = "minioadmin"
+    MINIO_BUCKET: str = "usuz-files"
+    MINIO_SECURE: bool = False
+    MINIO_LOCAL_PATH: str = "./data/files"  # для TEST режима
+
     # Демо-пользователи (создаются при TEST=true, см. init_db)
     TEACHER_EMAIL: str = "teacher@university.ru"
     TEACHER_PASSWORD: str = "Teacher123!"

@@ -7,7 +7,7 @@ from sqlalchemy.orm import selectinload
 
 from app.core.database import engine, Base, AsyncSessionLocal
 from app.core.security import get_password_hash
-from app.models.models import Role, User
+from app.models.models import Role, User, SiteSetting
 from app.core.config import settings
 import logging
 
@@ -124,7 +124,21 @@ async def init_db():
                 role_name="student",
             )
 
-        # Создаём тестовые данные если TEST mode
-        # if settings.TEST:
-        #     await _create_test_data(db)
-        pass
+        # Создаём настройки сайта по умолчанию
+        DEFAULT_SETTINGS = {
+            "site_name": "УСУЗ",
+            "site_description": "Университетская система учебных заметок",
+            "allow_registration": "true",
+            "default_role": "student",
+            "maintenance_mode": "false",
+            "max_notes_per_page": "18",
+            "allow_comments": "true",
+            "allow_guest_view": "true",
+            "theme": "dark",
+        }
+        for key, value in DEFAULT_SETTINGS.items():
+            existing = await db.execute(select(SiteSetting).where(SiteSetting.key == key))
+            if not existing.scalar_one_or_none():
+                db.add(SiteSetting(key=key, value=value))
+                logger.info(f"Настройка создана: {key}={value}")
+        await db.commit()

@@ -1,8 +1,9 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { motion } from 'framer-motion'
+import { motion, AnimatePresence } from 'framer-motion'
 import { EditorView, basicSetup } from 'codemirror'
 import { markdown } from '@codemirror/lang-markdown'
+import FileProgress from '@/components/ui/FileProgress'
 import { oneDark } from '@codemirror/theme-one-dark'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
@@ -12,7 +13,11 @@ import toast from 'react-hot-toast'
 import { useSearchParams } from 'react-router-dom'
 import {
   Save, Eye, EyeOff, ArrowLeft, Tag, Link2, X, Plus,
-  Globe, Lock, Loader2, Folder
+  Globe, Lock, Loader2, Folder, Bold, Italic, Heading1,
+  Heading2, Heading3, List, ListOrdered, Quote, Code2,
+  Minus, Link, Image, TextSelect, HelpCircle,
+  Paperclip, Upload, FileIcon, FileImage, FileText, Film, Music,
+  FileArchive, Download, Trash2
 } from 'lucide-react'
 
 export default function NoteEditPage() {
@@ -40,9 +45,124 @@ export default function NoteEditPage() {
   const [allNotes, setAllNotes] = useState([])
   const [newTag, setNewTag] = useState('')
   const [linkSearch, setLinkSearch] = useState('')
+  const [noteFiles, setNoteFiles] = useState([])
+  const [uploadState, setUploadState] = useState(null) // { file, progress, status }
 
   const editorRef = useRef(null)
   const editorViewRef = useRef(null)
+  const fileInputRef = useRef(null)
+  const [showHelp, setShowHelp] = useState(false)
+
+  // Форматирование: вставка/обёртывание синтаксиса
+  const insertFormat = useCallback((before, after, blockPrefix = null) => {
+    const view = editorViewRef.current
+    if (!view) return
+    const { from, to } = view.state.selection.main
+    const selected = view.state.sliceDoc(from, to)
+    const doc = view.state.doc
+
+    if (blockPrefix) {
+      // Блочное форматирование (заголовки, списки, цитаты)
+      const line = doc.lineAt(from)
+      const lineText = doc.sliceString(line.from, line.to)
+      const hasPrefix = lineText.startsWith(blockPrefix.trim())
+      const insert = hasPrefix
+        ? lineText.replace(new RegExp(`^${blockPrefix.replace(/\s/g, '\\s')}?`), '')
+        : blockPrefix + lineText
+
+      view.dispatch({
+        changes: { from: line.from, to: line.to, insert },
+        selection: { anchor: line.from + insert.length },
+      })
+      setContent(view.state.doc.toString())
+      return
+    }
+
+    if (selected) {
+      // Обёртываем выделение
+      const wrapped = before + selected + after
+      view.dispatch({
+        changes: { from, to, insert: wrapped },
+        selection: { anchor: from, head: from + wrapped.length },
+      })
+    } else {
+      // Вставляем с плейсхолдером
+      const placeholder = before === '**' ? 'жирный текст'
+        : before === '*' ? 'курсив'
+        : before === '`' ? 'код'
+        : before === '**' ? 'ссылка'
+        : 'текст'
+      const wrapped = before + placeholder + after
+      view.dispatch({
+        changes: { from, to, insert: wrapped },
+        selection: { anchor: from + before.length, head: from + before.length + placeholder.length },
+      })
+    }
+    view.focus()
+    setContent(view.state.doc.toString())
+  }, [])
+
+  // Вставка ссылки
+  const insertLink = useCallback(() => {
+    const view = editorViewRef.current
+    if (!view) return
+    const { from, to } = view.state.selection.main
+    const selected = view.state.sliceDoc(from, to)
+    const text = selected || 'текст ссылки'
+    const url = 'https://'
+    const linkText = `[${text}](${url})`
+    view.dispatch({
+      changes: { from, to, insert: linkText },
+      selection: { anchor: from + text.length + 2, head: from + text.length + 2 + url.length },
+    })
+    view.focus()
+    setContent(view.state.doc.toString())
+  }, [])
+
+  // Вставка изображения
+  const insertImage = useCallback(() => {
+    const view = editorViewRef.current
+    if (!view) return
+    const { from, to } = view.state.selection.main
+    const alt = view.state.sliceDoc(from, to) || 'описание'
+    const imgText = `![${alt}](https://)`
+    view.dispatch({
+      changes: { from, to, insert: imgText },
+      selection: { anchor: from + alt.length + 4, head: from + alt.length + 4 + 8 },
+    })
+    view.focus()
+    setContent(view.state.doc.toString())
+  }, [])
+
+  // Вставка разделителя
+  const insertHR = useCallback(() => {
+    const view = editorViewRef.current
+    if (!view) return
+    const { from } = view.state.selection.main
+    const line = view.state.doc.lineAt(from)
+    const insert = '\n\n---\n\n'
+    view.dispatch({
+      changes: { from: line.to, to: line.to, insert },
+      selection: { anchor: line.to + insert.length },
+    })
+    view.focus()
+    setContent(view.state.doc.toString())
+  }, [])
+
+  const FORMAT_BUTTONS = [
+    { icon: Bold, title: 'Жирный (Ctrl+B)', action: () => insertFormat('**', '**') },
+    { icon: Italic, title: 'Курсив (Ctrl+I)', action: () => insertFormat('*', '*') },
+    { icon: Code2, title: 'Код (Ctrl+Shift+C)', action: () => insertFormat('`', '`') },
+    { icon: Heading1, title: 'Заголовок 1', action: () => insertFormat('', '', '# ') },
+    { icon: Heading2, title: 'Заголовок 2', action: () => insertFormat('', '', '## ') },
+    { icon: Heading3, title: 'Заголовок 3', action: () => insertFormat('', '', '### ') },
+    { icon: List, title: 'Маркированный список', action: () => insertFormat('', '', '- ') },
+    { icon: ListOrdered, title: 'Нумерованный список', action: () => insertFormat('', '', '1. ') },
+    { icon: Quote, title: 'Цитата', action: () => insertFormat('', '', '> ') },
+    { icon: Link, title: 'Ссылка', action: insertLink },
+    { icon: Image, title: 'Изображение', action: insertImage },
+    { icon: Minus, title: 'Разделитель', action: insertHR },
+  ]
 
   // Инициализация CodeMirror
   useEffect(() => {
@@ -92,14 +212,21 @@ export default function NoteEditPage() {
   useEffect(() => {
     const load = async () => {
       try {
-        const [tagsRes, notesRes, foldersRes] = await Promise.all([
+        const promises = [
           api.get('/tags'),
           api.get('/notes', { params: { per_page: 100, published_only: false } }),
           api.get('/folders'),
-        ])
+        ]
+        if (isEdit) {
+          promises.push(api.get(`/notes/${id}/files`))
+        }
+        const [tagsRes, notesRes, foldersRes, filesRes] = await Promise.all(promises)
         setTags(tagsRes.data)
         setAllNotes(notesRes.data.items.filter((n) => String(n.id) !== String(id)))
         setFolders(foldersRes.data)
+        if (isEdit && filesRes) {
+          setNoteFiles(filesRes.data)
+        }
 
         if (isEdit) {
           const { data } = await api.get(`/notes/${id}`)
@@ -120,6 +247,70 @@ export default function NoteEditPage() {
     }
     load()
   }, [id, isEdit])
+
+  // Загрузка файлов
+  const loadNoteFiles = useCallback(async () => {
+    if (!isEdit) return
+    try {
+      const { data } = await api.get(`/notes/${id}/files`)
+      setNoteFiles(data)
+    } catch {}
+  }, [id, isEdit])
+
+  const handleUploadFile = async (e) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    if (file.size > 50 * 1024 * 1024) {
+      toast.error('Файл слишком большой (макс. 50 MB)')
+      return
+    }
+    setUploadState({ file, progress: 0, status: 'uploading' })
+    try {
+      const formData = new FormData()
+      formData.append('file', file)
+      const { data } = await api.post(`/notes/${id}/files`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+        onUploadProgress: (e) => {
+          const pct = e.total ? Math.round((e.loaded * 100) / e.total) : 0
+          setUploadState(prev => prev ? { ...prev, progress: pct } : prev)
+        },
+      })
+      setUploadState({ file, progress: 100, status: 'completed' })
+      await loadNoteFiles()
+      setTimeout(() => { setUploadState(null) }, 2500)
+    } catch (err) {
+      setUploadState({ file, progress: 0, status: 'error' })
+      toast.error(err.response?.data?.detail || 'Ошибка загрузки')
+    } finally {
+      if (fileInputRef.current) fileInputRef.current.value = ''
+    }
+  }
+
+  const handleDeleteFile = async (fileId) => {
+    try {
+      await api.delete(`/files/${fileId}`)
+      toast.success('Файл удалён')
+      setNoteFiles(prev => prev.filter(f => f.id !== fileId))
+    } catch {
+      toast.error('Ошибка удаления файла')
+    }
+  }
+
+  function getFileIcon(mimeType) {
+    if (mimeType.startsWith('image/')) return FileImage
+    if (mimeType.startsWith('video/')) return Film
+    if (mimeType.startsWith('audio/')) return Music
+    if (mimeType.startsWith('text/') || mimeType.includes('pdf') || mimeType.includes('document')) return FileText
+    if (mimeType.includes('zip') || mimeType.includes('rar')) return FileArchive
+    return FileIcon
+  }
+
+  function formatFileSize(bytes) {
+    if (bytes < 1024) return bytes + ' B'
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB'
+    if (bytes < 1024 * 1024 * 1024) return (bytes / (1024 * 1024)).toFixed(1) + ' MB'
+    return (bytes / (1024 * 1024 * 1024)).toFixed(1) + ' GB'
+  }
 
   const handleSave = async () => {
     if (!form.title.trim()) {
@@ -237,9 +428,58 @@ export default function NoteEditPage() {
         </div>
       </div>
 
+      {/* Панель форматирования */}
+      {!preview && (
+        <div className="flex items-center gap-0.5 px-4 py-1.5 border-b border-border bg-bg-secondary/80 flex-shrink-0 overflow-x-auto thin-scroll no-scrollbar">
+          {FORMAT_BUTTONS.map(({ icon: Icon, title, action }) => (
+            <button
+              key={title}
+              onClick={action}
+              title={title}
+              className="p-1.5 rounded-lg text-text-muted hover:text-text-primary hover:bg-bg-tertiary transition-all flex-shrink-0"
+            >
+              <Icon size={16} />
+            </button>
+          ))}
+          <div className="w-px h-5 bg-border mx-2 flex-shrink-0" />
+          <button
+            onClick={() => setShowHelp(!showHelp)}
+            title="Подсказка по форматированию"
+            className={`p-1.5 rounded-lg transition-all flex-shrink-0 ${showHelp ? 'bg-accent-purple/20 text-accent-purple-light' : 'text-text-muted hover:text-text-primary hover:bg-bg-tertiary'}`}
+          >
+            <HelpCircle size={16} />
+          </button>
+        </div>
+      )}
+
       <div className="flex-1 flex min-h-0">
         {/* Редактор / Превью */}
-        <div className="flex-1 min-w-0 overflow-hidden">
+        <div className="flex-1 min-w-0 overflow-hidden flex flex-col">
+          {!preview && showHelp && (
+            <div className="flex-shrink-0 border-b border-border bg-bg-secondary/50">
+              <div className="flex gap-6 px-6 py-3 overflow-x-auto thin-scroll text-xs">
+                {[
+                  { label: 'Жирный', syntax: '**текст**', example: '**Привет**' },
+                  { label: 'Курсив', syntax: '*текст*', example: '*Привет*' },
+                  { label: 'Заголовок', syntax: '# текст', example: '# Заголовок' },
+                  { label: 'Список', syntax: '- пункт', example: '- Пункт 1\n- Пункт 2' },
+                  { label: 'Нумерация', syntax: '1. пункт', example: '1. Шаг 1\n2. Шаг 2' },
+                  { label: 'Цитата', syntax: '> текст', example: '> Важная мысль' },
+                  { label: 'Код', syntax: '`код`', example: '`console.log()`' },
+                  { label: 'Ссылка', syntax: '[текст](url)', example: '[Гугл](https://google.com)' },
+                  { label: 'Картинка', syntax: '![alt](url)', example: '![Кот](https://...)' },
+                  { label: 'Разделитель', syntax: '---', example: '---' },
+                ].map(({ label, syntax, example }) => (
+                  <div key={label} className="flex flex-col gap-0.5 min-w-fit">
+                    <span className="font-medium text-text-primary whitespace-nowrap">{label}</span>
+                    <span className="font-mono text-text-muted whitespace-nowrap">{syntax}</span>
+                    <span className="font-mono text-accent-purple-light/70 whitespace-nowrap">→ {example.replace(/\n/g, ' | ')}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           {preview ? (
             <div className="h-full overflow-auto thin-scroll p-8 max-w-4xl mx-auto">
               {content ? (
@@ -251,7 +491,7 @@ export default function NoteEditPage() {
               )}
             </div>
           ) : (
-            <div ref={editorRef} className="h-full" />
+            <div ref={editorRef} className="flex-1" />
           )}
         </div>
 
@@ -357,20 +597,100 @@ export default function NoteEditPage() {
               )}
             </div>
 
-            {/* Справка по Markdown */}
+            {/* Прикреплённые файлы */}
+            {isEdit && (
+              <div>
+                <div className="flex items-center gap-2 mb-3 text-text-secondary text-sm font-medium">
+                  <Paperclip size={14} className="text-accent-purple-light" /> Файлы ({noteFiles.length})
+                </div>
+
+                <div className="space-y-2 mb-3">
+                  {noteFiles.map((file) => {
+                    const Icon = getFileIcon(file.mime_type)
+                    return (
+                      <div key={file.id} className="group flex items-center gap-2 p-2 bg-bg-card border border-border rounded-lg hover:border-accent-purple/40 transition-all">
+                        <Icon size={14} className="text-text-muted flex-shrink-0" />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs text-text-primary truncate">{file.original_name}</p>
+                          <p className="text-[10px] text-text-muted">{formatFileSize(file.file_size)}</p>
+                        </div>
+                        <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <a
+                            href={`/api/files/${file.id}/download`}
+                            download={file.original_name}
+                            className="p-1 rounded text-text-muted hover:text-text-primary transition-colors"
+                            title="Скачать"
+                          >
+                            <Download size={11} />
+                          </a>
+                          <button
+                            onClick={() => handleDeleteFile(file.id)}
+                            className="p-1 rounded text-text-muted hover:text-red-400 transition-colors"
+                            title="Удалить"
+                          >
+                            <Trash2 size={11} />
+                          </button>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+
+                {uploadState && (
+                  <div className="mb-3">
+                    <FileProgress
+                      file={uploadState.file}
+                      progress={uploadState.progress}
+                      status={uploadState.status}
+                      type="upload"
+                      onDismiss={() => setUploadState(null)}
+                    />
+                  </div>
+                )}
+
+                <div className="relative">
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    onChange={handleUploadFile}
+                    className="hidden"
+                    accept="*/*"
+                  />
+                  <button
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={uploadState?.status === 'uploading'}
+                    className="w-full flex items-center justify-center gap-2 px-3 py-2 border border-dashed border-border rounded-lg text-xs text-text-muted hover:text-accent-purple-light hover:border-accent-purple/50 transition-all disabled:opacity-50"
+                  >
+                    <Upload size={14} />
+                    Загрузить файл
+                  </button>
+                  <p className="text-[10px] text-text-muted/50 mt-1 text-center">до 50 MB</p>
+                </div>
+              </div>
+            )}
+
+            {/* Визуальная справка */}
             <div className="p-3 bg-bg-card border border-border rounded-xl">
-              <div className="text-xs font-medium text-text-secondary mb-2">Markdown</div>
-              <div className="space-y-1 font-mono text-xs text-text-muted">
+              <div className="text-xs font-medium text-text-secondary mb-2 flex items-center gap-1.5">
+                <TextSelect size={12} className="text-accent-purple-light" /> Быстрые клавиши
+              </div>
+              <div className="space-y-1.5 text-xs">
                 {[
-                  ['# Заголовок 1', 'h1'],
-                  ['**жирный**', 'bold'],
-                  ['*курсив*', 'italic'],
-                  ['```код```', 'code'],
-                  ['- пункт', 'list'],
-                  ['> цитата', 'quote'],
-                ].map(([syntax]) => (
-                  <div key={syntax} className="text-text-muted/70">{syntax}</div>
+                  { keys: 'Ctrl+B', desc: 'Жирный текст' },
+                  { keys: 'Ctrl+I', desc: 'Курсив' },
+                  { keys: 'Ctrl+Shift+C', desc: 'Код' },
+                  { keys: 'Выделите текст', desc: 'и нажмите кнопку на панели' },
+                ].map(({ keys, desc }) => (
+                  <div key={keys} className="flex items-center gap-2">
+                    <kbd className="px-1.5 py-0.5 bg-bg-tertiary border border-border rounded text-text-muted font-mono text-[10px]">{keys}</kbd>
+                    <span className="text-text-muted">{desc}</span>
+                  </div>
                 ))}
+              </div>
+              <div className="mt-3 pt-3 border-t border-border">
+                <p className="text-[10px] text-text-muted/60 leading-relaxed">
+                  Не беспокойтесь о синтаксисе — просто выделите текст и нажмите нужную кнопку на панели сверху.
+                </p>
               </div>
             </div>
           </div>

@@ -8,7 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from app.core.config import settings
-from app.api import auth, notes, comments, tags, graph, users, folders
+from app.api import auth, notes, comments, tags, graph, users, folders, settings as settings_api, files
 from app.services.init_db import init_db
 
 logging.basicConfig(
@@ -51,6 +51,8 @@ app.include_router(tags.router, prefix="/api")
 app.include_router(graph.router, prefix="/api")
 app.include_router(users.router, prefix="/api")
 app.include_router(folders.router, prefix="/api")
+app.include_router(settings_api.router, prefix="/api")
+app.include_router(files.router, prefix="/api")
 
 
 @app.get("/api/health")

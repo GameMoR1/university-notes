@@ -6,9 +6,11 @@ import * as THREE from 'three'
 import { motion, AnimatePresence } from 'framer-motion'
 import api from '@/utils/api'
 import { PageLoader, FolderSwitcher, EmptyState } from '@/components/ui/Common'
-import { Network, Search, Layers, X, Eye } from 'lucide-react'
+import Graph2D from '@/components/ui/Graph2D'
+import { Network, Search, Layers, X, Eye, Cuboid, LayoutGrid } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { useAuthStore } from '@/store/authStore'
+import { useUIStore } from '@/store/uiStore'
 
 // ─── 3D Node ──────────────────────────────────────────────────────────────────
 function NoteNode({ node, position, isSelected, isHovered, dimmed, onHover, onClick, scale = 1 }) {
@@ -337,6 +339,8 @@ export default function GraphPage() {
   const [filterTag, setFilterTag] = useState('')
   const [showPanel, setShowPanel] = useState(true)
   const [folderName, setFolderName] = useState('')
+  const graphView = useUIStore((s) => s.graphView)
+  const setGraphView = useUIStore((s) => s.setGraphView)
 
   useEffect(() => {
     api.get('/folders').then(({ data }) => setFolders(data)).catch(() => {})
@@ -508,14 +512,28 @@ export default function GraphPage() {
         />
       </div>
 
-      {/* 3D Canvas */}
+      {/* Canvas */}
       <div className="flex-1 relative">
-        <Canvas
-          camera={{ position: [0, 0, 18], fov: 60 }}
-          gl={{ antialias: true, alpha: false }}
-          style={{ background: '#06060a' }}
-        >
-          <GraphScene
+        {graphView === '3d' ? (
+          <Canvas
+            camera={{ position: [0, 0, 18], fov: 60 }}
+            gl={{ antialias: true, alpha: false }}
+            style={{ background: '#06060a' }}
+          >
+            <GraphScene
+              nodes={filteredNodes}
+              edges={filteredEdges}
+              selectedId={highlightCenterId}
+              hoveredId={hoveredNode?.id}
+              focusIds={focusIds}
+              highlightActive={highlightActive}
+              onNodeClick={handleNodeClick}
+              onNodeHover={handleNodeHover}
+              positions={positions}
+            />
+          </Canvas>
+        ) : (
+          <Graph2D
             nodes={filteredNodes}
             edges={filteredEdges}
             selectedId={highlightCenterId}
@@ -524,9 +542,8 @@ export default function GraphPage() {
             highlightActive={highlightActive}
             onNodeClick={handleNodeClick}
             onNodeHover={handleNodeHover}
-            positions={positions}
           />
-        </Canvas>
+        )}
 
         {/* Статистика поверх canvas */}
         <div className="absolute top-4 left-4 flex items-center gap-3 pointer-events-none">
@@ -535,6 +552,26 @@ export default function GraphPage() {
             <span className="text-text-muted">{filteredNodes.length} заметок</span>
             <span className="text-border">|</span>
             <span className="text-text-muted">{filteredEdges.length} связей</span>
+          </div>
+        </div>
+
+        {/* Переключатель 2D / 3D */}
+        <div className="absolute top-4 right-4 z-10">
+          <div className="glass rounded-xl p-1 flex items-center gap-1">
+            <button
+              onClick={() => setGraphView('2d')}
+              className={`p-2 rounded-lg transition-all ${graphView === '2d' ? 'bg-accent-purple text-white shadow-lg shadow-accent-purple/25' : 'text-text-muted hover:text-text-primary hover:bg-bg-tertiary'}`}
+              title="2D вид"
+            >
+              <LayoutGrid size={16} />
+            </button>
+            <button
+              onClick={() => setGraphView('3d')}
+              className={`p-2 rounded-lg transition-all ${graphView === '3d' ? 'bg-accent-purple text-white shadow-lg shadow-accent-purple/25' : 'text-text-muted hover:text-text-primary hover:bg-bg-tertiary'}`}
+              title="3D вид"
+            >
+              <Cuboid size={16} />
+            </button>
           </div>
         </div>
 
@@ -557,7 +594,10 @@ export default function GraphPage() {
 
         {/* Подсказка */}
         <div className="absolute bottom-4 left-1/2 -translate-x-1/2 text-xs text-text-muted pointer-events-none max-w-md text-center">
-          Перетаскивание — вращение · Колесо — масштаб · Клик — фокус: соседи светлее, остальные приглушены
+          {graphView === '3d'
+            ? 'Перетаскивание — вращение · Колесо — масштаб · Клик — фокус: соседи светлее, остальные приглушены'
+            : 'Перетаскивание — панорама · Колесо — масштаб · Клик — фокус · Тащи узел — переместить'
+          }
         </div>
       </div>
 
