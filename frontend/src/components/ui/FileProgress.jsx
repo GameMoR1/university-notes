@@ -51,7 +51,7 @@ export default function FileProgress({ file, progress, status, type = 'upload', 
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 mb-1">
               <Icon size={12} className="text-text-muted flex-shrink-0" />
-              <span className="text-sm font-medium text-text-primary truncate">{file?.name || 'Файл'}</span>
+              <span className="text-sm font-medium text-text-primary truncate">{file?.original_name || 'Файл'}</span>
               {isDone && (
                 <motion.span
                   initial={{ opacity: 0, x: -10 }}

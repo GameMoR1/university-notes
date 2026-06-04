@@ -136,8 +136,8 @@ async def preview_file(
         raise HTTPException(404, "Файл не найден в хранилище")
 
     mime = db_file.mime_type
-    # Для PDF и изображений показываем inline
-    if mime.startswith("image/") or mime == "application/pdf":
+    # Для PDF, изображений, видео и аудио показываем inline
+    if mime.startswith("image/") or mime == "application/pdf" or mime.startswith("video/") or mime.startswith("audio/"):
         disposition = "inline"
     else:
         disposition = "attachment"

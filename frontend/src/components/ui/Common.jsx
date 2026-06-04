@@ -147,7 +147,7 @@ export function FolderSwitcher({ folders, selectedId, onSelect, showAll = true, 
   )
 }
 
-export function CustomSelect({ value, onChange, options, placeholder = 'Выберите...', className = '' }) {
+export function CustomSelect({ value, onChange, options, groups, placeholder = 'Выберите...', className = '' }) {
   const [isOpen, setIsOpen] = useState(false)
   const containerRef = useRef(null)
 
@@ -161,7 +161,8 @@ export function CustomSelect({ value, onChange, options, placeholder = 'Выбе
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [])
 
-  const selectedOption = options.find((o) => String(o.value) === String(value))
+  const allOptions = groups ? groups.flatMap(g => g.options) : options
+  const selectedOption = allOptions.find((o) => String(o.value) === String(value))
 
   return (
     <div ref={containerRef} className={`relative ${className}`}>
@@ -186,22 +187,46 @@ export function CustomSelect({ value, onChange, options, placeholder = 'Выбе
             className="absolute z-[100] top-full left-0 right-0 mt-2 bg-bg-secondary/95 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl shadow-black/80 overflow-hidden"
           >
             <div className="max-h-60 overflow-auto p-1.5 thin-scroll">
-              {options.map((option) => (
-                <button
-                  key={option.value}
-                  type="button"
-                  onClick={() => {
-                    onChange(option.value)
-                    setIsOpen(false)
-                  }}
-                  className={`w-full text-left px-4 py-2.5 rounded-xl text-[11px] font-bold uppercase tracking-wide transition-all ${String(option.value) === String(value)
-                      ? 'bg-accent-purple text-white shadow-lg shadow-accent-purple/20'
-                      : 'text-text-secondary hover:bg-white/5 hover:text-text-primary'
-                    }`}
-                >
-                  {option.label}
-                </button>
-              ))}
+              {groups
+                ? groups.map((group) => (
+                    <div key={group.label}>
+                      <div className="px-4 py-1.5 text-[10px] font-bold uppercase tracking-wider text-text-muted/50">
+                        {group.label}
+                      </div>
+                      {group.options.map((option) => (
+                        <button
+                          key={option.value}
+                          type="button"
+                          onClick={() => {
+                            onChange(option.value)
+                            setIsOpen(false)
+                          }}
+                          className={`w-full text-left px-4 py-2.5 rounded-xl text-[11px] font-bold uppercase tracking-wide transition-all ${String(option.value) === String(value)
+                              ? 'bg-accent-purple text-white shadow-lg shadow-accent-purple/20'
+                              : 'text-text-secondary hover:bg-white/5 hover:text-text-primary'
+                            }`}
+                        >
+                          {option.label}
+                        </button>
+                      ))}
+                    </div>
+                  ))
+                : options.map((option) => (
+                    <button
+                      key={option.value}
+                      type="button"
+                      onClick={() => {
+                        onChange(option.value)
+                        setIsOpen(false)
+                      }}
+                      className={`w-full text-left px-4 py-2.5 rounded-xl text-[11px] font-bold uppercase tracking-wide transition-all ${String(option.value) === String(value)
+                          ? 'bg-accent-purple text-white shadow-lg shadow-accent-purple/20'
+                          : 'text-text-secondary hover:bg-white/5 hover:text-text-primary'
+                        }`}
+                    >
+                      {option.label}
+                    </button>
+                  ))}
             </div>
           </motion.div>
         )}

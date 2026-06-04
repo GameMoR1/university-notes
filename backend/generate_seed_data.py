@@ -7,7 +7,7 @@ sys.path.append(str(Path(__file__).parent))
 
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
-from app.core.database import AsyncSessionLocal
+from app.core.database import get_session_maker
 from app.models.models import User, Tag, Note
 
 TOPICS = [
@@ -37,7 +37,7 @@ TAGS = [
 ]
 
 async def generate():
-    async with AsyncSessionLocal() as db:
+    async with get_session_maker()() as db:
         # Get admin user or first user
         result = await db.execute(select(User))
         user = result.scalars().first()

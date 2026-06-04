@@ -7,12 +7,12 @@ import asyncio
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
-from app.core.database import AsyncSessionLocal
+from app.core.database import get_session_maker
 from app.models.models import Note, Comment
 
 
 async def main() -> None:
-    async with AsyncSessionLocal() as db:
+    async with get_session_maker()() as db:
         q = (
             select(Note)
             .options(
@@ -25,7 +25,7 @@ async def main() -> None:
         res = await db.execute(q)
         notes = res.scalars().unique().all()
         print("FOUND PUBLISHED:", len(notes))
-    async with AsyncSessionLocal() as db:
+    async with get_session_maker()() as db:
         q = select(Note)
         res = await db.execute(q)
         print("ALL:", len(res.scalars().all()))

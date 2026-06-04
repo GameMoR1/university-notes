@@ -94,5 +94,9 @@ class Settings(BaseSettings):
     def origins_list(self) -> list[str]:
         return [o.strip() for o in self.ALLOWED_ORIGINS.split(",")]
 
+    @property
+    def ALEMBIC_CFG_PATH(self) -> str:
+        return str(Path(__file__).parent.parent.parent / "alembic.ini")
+
 
 settings = Settings()

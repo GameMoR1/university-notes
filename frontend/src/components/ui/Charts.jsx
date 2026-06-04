@@ -3,6 +3,15 @@ import { useMemo } from 'react'
 const COLORS = ['#7c3aed', '#f59e0b', '#10b981', '#ef4444', '#3b82f6']
 const PAD = { top: 4, right: 8, bottom: 4, left: 8 }
 
+const HOVER_STYLES = `
+  .chart-bar { cursor: pointer; transition: opacity 0.15s; }
+  .chart-bar rect { transition: opacity 0.15s, stroke 0.15s; }
+  .chart-bar:hover rect { opacity: 1; stroke: rgba(255,255,255,0.45); stroke-width: 1.5; }
+  .chart-point { cursor: pointer; }
+  .chart-point circle { transition: opacity 0.15s, stroke 0.15s; }
+  .chart-point:hover circle { opacity: 1; stroke: rgba(255,255,255,0.45); stroke-width: 1.5; }
+`
+
 export function BarChart({ data, keys, labels, height = 140 }) {
   const dims = useMemo(() => {
     if (!data?.length) return null
@@ -34,22 +43,29 @@ export function BarChart({ data, keys, labels, height = 140 }) {
   if (!dims) return null
   return (
     <div className="w-full" style={{ height }}>
-      <svg viewBox={dims.vb} className="w-full h-full overflow-hidden" preserveAspectRatio="none">
-        {dims.bars.map((s, i) => (
-          <rect
-            key={i}
-            x={s.x}
-            y={s.y}
-            width={s.w}
-            height={Math.max(0, s.h)}
-            fill={COLORS[keys.indexOf(s.key) % COLORS.length]}
-            rx={2}
-            opacity={0.85}
-          />
-        ))}
+      <svg viewBox={dims.vb} className="w-full h-full overflow-hidden">
+        <style>{HOVER_STYLES}</style>
+        {dims.bars.map((s, i) => {
+          const color = COLORS[keys.indexOf(s.key) % COLORS.length]
+          const label = labels?.[keys.indexOf(s.key)] || s.key
+          return (
+            <g key={i} className="chart-bar">
+              <rect
+                x={s.x}
+                y={s.y}
+                width={s.w}
+                height={Math.max(0, s.h)}
+                fill={color}
+                rx={2}
+                opacity={0.75}
+              />
+              <title>{`${label}: ${s.value}`}</title>
+            </g>
+          )
+        })}
       </svg>
       {labels && (
-        <div className="flex justify-center gap-4 -mt-1">
+        <div className="flex justify-center gap-4 mt-1">
           {keys.map((k, i) => (
             <div key={k} className="flex items-center gap-1.5 text-xs text-text-muted">
               <span className="w-2.5 h-2.5 rounded" style={{ backgroundColor: COLORS[i % COLORS.length] }} />
@@ -86,18 +102,26 @@ export function LineChart({ data, keys, labels, height = 140 }) {
   if (!dims) return null
   return (
     <div className="w-full" style={{ height }}>
-      <svg viewBox={dims.vb} className="w-full h-full overflow-hidden" preserveAspectRatio="none">
+      <svg viewBox={dims.vb} className="w-full h-full overflow-hidden">
+        <style>{HOVER_STYLES}</style>
         {dims.lines.map((line, i) => (
           <g key={line.key}>
             <path d={line.d} fill="none" stroke={COLORS[i % COLORS.length]} strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" />
-            {line.pts.map((pt, j) => (
-              <circle key={j} cx={pt.x} cy={pt.y} r={3} fill={COLORS[i % COLORS.length]} />
-            ))}
+            {line.pts.map((pt, j) => {
+              const val = data[j]?.[line.key] || 0
+              const label = labels?.[i] || line.key
+              return (
+                <g key={j} className="chart-point">
+                  <circle cx={pt.x} cy={pt.y} r={4} fill={COLORS[i % COLORS.length]} opacity={0.8} />
+                  <title>{`${label}: ${val}`}</title>
+                </g>
+              )
+            })}
           </g>
         ))}
       </svg>
       {labels && (
-        <div className="flex justify-center gap-4 -mt-1">
+        <div className="flex justify-center gap-4 mt-1">
           {keys.map((k, i) => (
             <div key={k} className="flex items-center gap-1.5 text-xs text-text-muted">
               <span className="w-2.5 h-2.5 rounded" style={{ backgroundColor: COLORS[i % COLORS.length] }} />

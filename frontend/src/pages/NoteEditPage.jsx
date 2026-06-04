@@ -3,10 +3,9 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { EditorView, basicSetup } from 'codemirror'
 import { markdown } from '@codemirror/lang-markdown'
-import FileProgress from '@/components/ui/FileProgress'
 import { oneDark } from '@codemirror/theme-one-dark'
-import ReactMarkdown from 'react-markdown'
-import remarkGfm from 'remark-gfm'
+import FileProgress from '@/components/ui/FileProgress'
+import { MarkdownWithFiles } from '@/components/ui/FileEmbed'
 import api from '@/utils/api'
 import { PageLoader, CustomSelect } from '@/components/ui/Common'
 import toast from 'react-hot-toast'
@@ -17,7 +16,7 @@ import {
   Heading2, Heading3, List, ListOrdered, Quote, Code2,
   Minus, Link, Image, TextSelect, HelpCircle,
   Paperclip, Upload, FileIcon, FileImage, FileText, Film, Music,
-  FileArchive, Download, Trash2
+  FileArchive, Download, Trash2, Maximize2
 } from 'lucide-react'
 
 export default function NoteEditPage() {
@@ -47,10 +46,13 @@ export default function NoteEditPage() {
   const [linkSearch, setLinkSearch] = useState('')
   const [noteFiles, setNoteFiles] = useState([])
   const [uploadState, setUploadState] = useState(null) // { file, progress, status }
+  const [previewFile, setPreviewFile] = useState(null)
 
   const editorRef = useRef(null)
   const editorViewRef = useRef(null)
   const fileInputRef = useRef(null)
+  const noteFilesRef = useRef(noteFiles)
+  noteFilesRef.current = noteFiles
   const [showHelp, setShowHelp] = useState(false)
 
   // Форматирование: вставка/обёртывание синтаксиса
@@ -185,6 +187,27 @@ export default function NoteEditPage() {
           '.cm-scroller': { overflow: 'auto' },
           '.cm-focused': { outline: 'none' },
         }),
+        EditorView.domEventHandlers({
+          drop: (event) => {
+            const fileId = event.dataTransfer?.getData('text/file-id')
+            if (!fileId) return false
+            event.preventDefault()
+            const file = noteFilesRef.current.find(f => f.id === parseInt(fileId))
+            if (!file) return true
+            const pos = view.posAtCoords({ x: event.clientX, y: event.clientY })
+            if (pos === null) return true
+            const insertText = `![${file.original_name}](file:${file.id})`
+            view.dispatch({
+              changes: { from: pos, to: pos, insert: insertText }
+            })
+            view.focus()
+            return true
+          },
+          dragover: (event) => {
+            event.preventDefault()
+            return false
+          },
+        }),
       ],
       parent: editorRef.current,
     })
@@ -194,7 +217,7 @@ export default function NoteEditPage() {
       view.destroy()
       editorViewRef.current = null
     }
-  }, [preview])
+  }, [preview, loading])
 
   // Синхронизируем содержимое при переключении режимов
   useEffect(() => {
@@ -331,7 +354,7 @@ export default function NoteEditPage() {
       } else {
         const { data } = await api.post('/notes', payload)
         toast.success('Заметка создана!')
-        navigate(`/notes/${data.id}`)
+        navigate(`/notes/${data.id}/edit`)
       }
     } catch (err) {
       toast.error(err.response?.data?.detail || 'Ошибка сохранения')
@@ -484,7 +507,7 @@ export default function NoteEditPage() {
             <div className="h-full overflow-auto thin-scroll p-8 max-w-4xl mx-auto">
               {content ? (
                 <div className="markdown-body">
-                  <ReactMarkdown remarkPlugins={[remarkGfm]}>{content}</ReactMarkdown>
+                  <MarkdownWithFiles content={content} files={noteFiles} />
                 </div>
               ) : (
                 <p className="text-text-muted italic text-center py-20">Пустой контент</p>
@@ -598,18 +621,40 @@ export default function NoteEditPage() {
             </div>
 
             {/* Прикреплённые файлы */}
-            {isEdit && (
-              <div>
-                <div className="flex items-center gap-2 mb-3 text-text-secondary text-sm font-medium">
-                  <Paperclip size={14} className="text-accent-purple-light" /> Файлы ({noteFiles.length})
-                </div>
+            <div>
+              <div className="flex items-center gap-2 mb-3 text-text-secondary text-sm font-medium">
+                <Paperclip size={14} className="text-accent-purple-light" /> Файлы ({noteFiles.length})
+              </div>
 
+              {!isEdit && (
+                <p className="text-xs text-text-muted mb-3">Сохраните заметку, чтобы прикрепить файлы</p>
+              )}
+
+              {noteFiles.length > 0 && (
                 <div className="space-y-2 mb-3">
                   {noteFiles.map((file) => {
                     const Icon = getFileIcon(file.mime_type)
+                    const isImage = file.mime_type.startsWith('image/')
                     return (
-                      <div key={file.id} className="group flex items-center gap-2 p-2 bg-bg-card border border-border rounded-lg hover:border-accent-purple/40 transition-all">
-                        <Icon size={14} className="text-text-muted flex-shrink-0" />
+                      <div
+                        key={file.id}
+                        draggable
+                        onDragStart={(e) => {
+                          e.dataTransfer.setData('text/file-id', String(file.id))
+                          e.dataTransfer.effectAllowed = 'copy'
+                        }}
+                        onDoubleClick={() => setPreviewFile(file)}
+                        className="group flex items-center gap-2 p-2 bg-bg-card border border-border rounded-lg hover:border-accent-purple/40 transition-all cursor-grab active:cursor-grabbing"
+                      >
+                        {isImage ? (
+                          <img
+                            src={`/api/files/${file.id}/preview`}
+                            alt={file.original_name}
+                            className="w-8 h-8 rounded object-cover flex-shrink-0"
+                          />
+                        ) : (
+                          <Icon size={14} className="text-text-muted flex-shrink-0" />
+                        )}
                         <div className="flex-1 min-w-0">
                           <p className="text-xs text-text-primary truncate">{file.original_name}</p>
                           <p className="text-[10px] text-text-muted">{formatFileSize(file.file_size)}</p>
@@ -635,39 +680,39 @@ export default function NoteEditPage() {
                     )
                   })}
                 </div>
+              )}
 
-                {uploadState && (
-                  <div className="mb-3">
-                    <FileProgress
-                      file={uploadState.file}
-                      progress={uploadState.progress}
-                      status={uploadState.status}
-                      type="upload"
-                      onDismiss={() => setUploadState(null)}
-                    />
-                  </div>
-                )}
-
-                <div className="relative">
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    onChange={handleUploadFile}
-                    className="hidden"
-                    accept="*/*"
+              {uploadState && (
+                <div className="mb-3">
+                  <FileProgress
+                    file={uploadState.file}
+                    progress={uploadState.progress}
+                    status={uploadState.status}
+                    type="upload"
+                    onDismiss={() => setUploadState(null)}
                   />
-                  <button
-                    onClick={() => fileInputRef.current?.click()}
-                    disabled={uploadState?.status === 'uploading'}
-                    className="w-full flex items-center justify-center gap-2 px-3 py-2 border border-dashed border-border rounded-lg text-xs text-text-muted hover:text-accent-purple-light hover:border-accent-purple/50 transition-all disabled:opacity-50"
-                  >
-                    <Upload size={14} />
-                    Загрузить файл
-                  </button>
-                  <p className="text-[10px] text-text-muted/50 mt-1 text-center">до 50 MB</p>
                 </div>
+              )}
+
+              <div className="relative">
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  onChange={handleUploadFile}
+                  className="hidden"
+                  accept="*/*"
+                />
+                <button
+                  onClick={() => isEdit ? fileInputRef.current?.click() : null}
+                  disabled={!isEdit || uploadState?.status === 'uploading'}
+                  className="w-full flex items-center justify-center gap-2 px-3 py-2 border border-dashed border-border rounded-lg text-xs text-text-muted hover:text-accent-purple-light hover:border-accent-purple/50 transition-all disabled:opacity-50"
+                >
+                  <Upload size={14} />
+                  {isEdit ? 'Загрузить файл' : 'Сначала сохраните заметку'}
+                </button>
+                {isEdit && <p className="text-[10px] text-text-muted/50 mt-1 text-center">до 50 MB</p>}
               </div>
-            )}
+            </div>
 
             {/* Визуальная справка */}
             <div className="p-3 bg-bg-card border border-border rounded-xl">
@@ -696,6 +741,89 @@ export default function NoteEditPage() {
           </div>
         </div>
       </div>
+
+      {/* Превью файла */}
+      <AnimatePresence>
+        {previewFile && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4"
+            onClick={() => setPreviewFile(null)}
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="relative max-w-5xl max-h-[90vh] w-full flex flex-col"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-sm font-medium text-text-primary truncate">{previewFile.original_name}</h3>
+                <div className="flex items-center gap-2">
+                  <a
+                    href={`/api/files/${previewFile.id}/download`}
+                    download={previewFile.original_name}
+                    className="btn-secondary text-xs px-3 py-1.5 flex items-center gap-1.5"
+                  >
+                    <Download size={12} /> Скачать
+                  </a>
+                  <button
+                    onClick={() => setPreviewFile(null)}
+                    className="p-1.5 rounded-lg text-text-muted hover:text-text-primary hover:bg-bg-tertiary transition-all"
+                  >
+                    <X size={18} />
+                  </button>
+                </div>
+              </div>
+              <div className="bg-bg-card border border-border rounded-2xl overflow-hidden flex-1 flex items-center justify-center min-h-[300px]">
+                {previewFile.mime_type.startsWith('image/') ? (
+                  <img
+                    src={`/api/files/${previewFile.id}/preview`}
+                    alt={previewFile.original_name}
+                    className="max-w-full max-h-[75vh] object-contain"
+                  />
+                ) : previewFile.mime_type.startsWith('video/') ? (
+                  <video
+                    src={`/api/files/${previewFile.id}/preview`}
+                    controls
+                    className="max-w-full max-h-[75vh]"
+                  >
+                    Ваш браузер не поддерживает видео
+                  </video>
+                ) : previewFile.mime_type.startsWith('audio/') ? (
+                  <audio src={`/api/files/${previewFile.id}/preview`} controls className="w-full max-w-md" />
+                ) : previewFile.mime_type === 'application/pdf' ? (
+                  <iframe
+                    src={`/api/files/${previewFile.id}/preview`}
+                    className="w-full h-[75vh]"
+                    title={previewFile.original_name}
+                  />
+                ) : previewFile.mime_type.startsWith('text/') ? (
+                  <iframe
+                    src={`/api/files/${previewFile.id}/preview`}
+                    className="w-full h-[75vh]"
+                    title={previewFile.original_name}
+                  />
+                ) : (
+                  <div className="flex flex-col items-center gap-4 p-8">
+                    <FileIcon size={48} className="text-text-muted" />
+                    <p className="text-text-muted text-sm">Предпросмотр недоступен для этого типа файлов</p>
+                    <a
+                      href={`/api/files/${previewFile.id}/download`}
+                      download={previewFile.original_name}
+                      className="btn-primary text-sm flex items-center gap-2"
+                    >
+                      <Download size={14} /> Скачать файл
+                    </a>
+                  </div>
+                )}
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   )
 }

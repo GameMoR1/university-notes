@@ -128,7 +128,18 @@ async def admin_update_user(
     if data.name:
         user.name = data.name
 
-    log = ActivityLog(user_id=current_user.id, action="admin_update_user", entity_type="user", entity_id=user_id)
+    changes = []
+    if data.is_blocked is not None:
+        changes.append("блокировка" if data.is_blocked else "разблокировка")
+    if data.role_id is not None:
+        changes.append(f"роль->{role.name}")
+    if data.name:
+        changes.append("имя")
+    log = ActivityLog(
+        user_id=current_user.id, action="admin_update_user",
+        entity_type="user", entity_id=user_id,
+        details=f"email={user.email}: {', '.join(changes)}" if changes else None,
+    )
     db.add(log)
     await db.commit()
 
@@ -148,6 +159,12 @@ async def admin_delete_user(
         raise HTTPException(404)
     if user.id == current_user.id:
         raise HTTPException(400, "Нельзя удалить себя")
+    log = ActivityLog(
+        user_id=current_user.id, action="admin_delete_user",
+        entity_type="user", entity_id=user_id,
+        details=f"email={user.email}, name={user.name}",
+    )
+    db.add(log)
     await db.delete(user)
     await db.commit()
     return {"message": "Пользователь удалён"}
@@ -164,7 +181,7 @@ async def list_roles(db: AsyncSession = Depends(get_db), _: User = Depends(get_c
 async def create_role(
     data: RoleCreate,
     db: AsyncSession = Depends(get_db),
-    _: User = Depends(require_admin),
+    current_user: User = Depends(require_admin),
 ):
     existing = await db.execute(select(Role).where(Role.name == data.name))
     if existing.scalar_one_or_none():
@@ -173,6 +190,13 @@ async def create_role(
     db.add(role)
     await db.commit()
     await db.refresh(role)
+    log = ActivityLog(
+        user_id=current_user.id, action="create_role",
+        entity_type="role", entity_id=role.id,
+        details=f"name={role.name}",
+    )
+    db.add(log)
+    await db.commit()
     return role
 
 
@@ -181,7 +205,7 @@ async def update_role(
     role_id: int,
     data: RoleUpdate,
     db: AsyncSession = Depends(get_db),
-    _: User = Depends(require_admin),
+    current_user: User = Depends(require_admin),
 ):
     result = await db.execute(select(Role).where(Role.id == role_id))
     role = result.scalar_one_or_none()
@@ -191,6 +215,13 @@ async def update_role(
         setattr(role, k, v)
     await db.commit()
     await db.refresh(role)
+    log = ActivityLog(
+        user_id=current_user.id, action="update_role",
+        entity_type="role", entity_id=role_id,
+        details=f"name={role.name}",
+    )
+    db.add(log)
+    await db.commit()
     return role
 
 
@@ -198,16 +229,23 @@ async def update_role(
 async def delete_role(
     role_id: int,
     db: AsyncSession = Depends(get_db),
-    _: User = Depends(require_admin),
+    current_user: User = Depends(require_admin),
 ):
     result = await db.execute(select(Role).where(Role.id == role_id))
     role = result.scalar_one_or_none()
     if not role:
         raise HTTPException(404)
-    # Проверяем наличие пользователей
+    if role.name in ("admin", "teacher", "student"):
+        raise HTTPException(400, "Нельзя удалить системную роль")
     user_count = (await db.execute(select(func.count()).select_from(User).where(User.role_id == role_id))).scalar()
     if user_count:
         raise HTTPException(400, f"Роль используется {user_count} пользователями")
+    log = ActivityLog(
+        user_id=current_user.id, action="delete_role",
+        entity_type="role", entity_id=role_id,
+        details=f"name={role.name}",
+    )
+    db.add(log)
     await db.delete(role)
     await db.commit()
     return {"message": "Роль удалена"}
@@ -325,8 +363,8 @@ async def admin_health(
     db_error = None
     db_type = "PostgreSQL"
     try:
-        from app.core.database import AsyncSessionLocal
-        async with AsyncSessionLocal() as session:
+        from app.core.database import get_session_maker
+        async with get_session_maker()() as session:
             await session.execute(select(func.count()).select_from(Note))
         if __debug__:
             db_type = "SQLite" if "sqlite" in str(settings.database_url) else "PostgreSQL"
@@ -499,6 +537,7 @@ async def admin_logs(
         {
             "id": l.id,
             "action": l.action,
+            "category": _log_category(l.action),
             "entity_type": l.entity_type,
             "entity_id": l.entity_id,
             "details": l.details,
@@ -515,3 +554,23 @@ async def admin_logs(
         per_page=per_page,
         pages=max(1, (total + per_page - 1) // per_page),
     )
+
+
+def _log_category(action: str) -> str:
+    if action in ("login", "register", "refresh"):
+        return "auth"
+    if "note" in action:
+        return "notes"
+    if "comment" in action:
+        return "comments"
+    if "file" in action:
+        return "files"
+    if "folder" in action:
+        return "folders"
+    if action in ("create_role", "update_role", "delete_role"):
+        return "roles"
+    if "user" in action or action == "admin_update_user":
+        return "users"
+    if "setting" in action:
+        return "settings"
+    return "other"

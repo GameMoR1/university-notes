@@ -22,11 +22,11 @@ jobs:
         with:
           context: ./backend
           push: true
-          tags: gamemor1/university_notes:latest
+          tags: gamemor1/university_notes:dev
 
       - name: Build and push frontend
         uses: docker/build-push-action@v6
         with:
           context: ./frontend
           push: true
-          tags: gamemor1/university_notes_front:latest
+          tags: gamemor1/university_notes_front:dev

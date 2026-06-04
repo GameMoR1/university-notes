@@ -6,7 +6,7 @@ from pathlib import Path
 sys.path.append(str(Path(__file__).parent.parent))
 
 from sqlalchemy import delete, select
-from app.core.database import AsyncSessionLocal
+from app.core.database import get_session_maker
 from app.models.models import Note, Tag, Comment, User, Role, ActivityLog, RoleName
 
 async def purge_data():
@@ -14,7 +14,7 @@ async def purge_data():
     Удаляет все данные, кроме ролей и администратора.
     Удаляет всех пользователей, кроме 'admin'.
     """
-    async with AsyncSessionLocal() as db:
+    async with get_session_maker()() as db:
         print("Начинаю очистку базы данных...")
         
         # 1. Удаляем комментарии

@@ -1,5 +1,5 @@
 """Auth API: регистрация, логин, refresh."""
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
@@ -13,7 +13,7 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 
 
 @router.post("/register", response_model=UserOut, status_code=201)
-async def register(data: UserRegister, db: AsyncSession = Depends(get_db)):
+async def register(data: UserRegister, request: Request, db: AsyncSession = Depends(get_db)):
     # Проверяем уникальность email
     existing = await db.execute(select(User).where(User.email == data.email))
     if existing.scalar_one_or_none():
@@ -34,7 +34,13 @@ async def register(data: UserRegister, db: AsyncSession = Depends(get_db)):
     db.add(user)
     await db.flush()
 
-    log = ActivityLog(user_id=user.id, action="register", entity_type="user", entity_id=user.id)
+    ip = request.client.host if request.client else "unknown"
+    ua = request.headers.get("user-agent", "")[:100]
+    log = ActivityLog(
+        user_id=user.id, action="register",
+        entity_type="user", entity_id=user.id,
+        details=f"IP={ip}, UA={ua}",
+    )
     db.add(log)
     await db.commit()
 
@@ -45,7 +51,7 @@ async def register(data: UserRegister, db: AsyncSession = Depends(get_db)):
 
 
 @router.post("/login", response_model=Token)
-async def login(data: UserLogin, db: AsyncSession = Depends(get_db)):
+async def login(data: UserLogin, request: Request, db: AsyncSession = Depends(get_db)):
     result = await db.execute(
         select(User).options(selectinload(User.role)).where(User.email == data.email)
     )
@@ -59,7 +65,13 @@ async def login(data: UserLogin, db: AsyncSession = Depends(get_db)):
     access_token = create_access_token({"sub": str(user.id)})
     refresh_token = create_refresh_token({"sub": str(user.id)})
 
-    log = ActivityLog(user_id=user.id, action="login", entity_type="user", entity_id=user.id)
+    ip = request.client.host if request.client else "unknown"
+    ua = request.headers.get("user-agent", "")[:100]
+    log = ActivityLog(
+        user_id=user.id, action="login",
+        entity_type="user", entity_id=user.id,
+        details=f"IP={ip}, UA={ua}",
+    )
     db.add(log)
     await db.commit()
 

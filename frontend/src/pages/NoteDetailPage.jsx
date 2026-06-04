@@ -1,12 +1,11 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
-import ReactMarkdown from 'react-markdown'
-import remarkGfm from 'remark-gfm'
 import api from '@/utils/api'
 import { useAuthStore } from '@/store/authStore'
 import { PageLoader, ConfirmModal } from '@/components/ui/Common'
 import FileProgress from '@/components/ui/FileProgress'
+import { MarkdownWithFiles } from '@/components/ui/FileEmbed'
 import toast from 'react-hot-toast'
 import {
   Edit, Trash2, Globe, Lock, Eye, MessageSquare,
@@ -196,8 +195,6 @@ export default function NoteDetailPage() {
     } catch (err) {
       toast.error('Заметка не найдена')
       navigate('/notes')
-    } finally {
-      setLoading(false)
     }
   }
 
@@ -216,9 +213,7 @@ export default function NoteDetailPage() {
   }
 
   useEffect(() => {
-    loadNote()
-    loadComments()
-    loadFiles()
+    Promise.all([loadNote(), loadComments(), loadFiles()]).finally(() => setLoading(false))
   }, [id])
 
   const handleDeleteFile = async (fileId) => {
@@ -232,8 +227,8 @@ export default function NoteDetailPage() {
     setDeletingFile(null)
   }
 
-  const handleDownload = async (file, fromPreview = false) => {
-    if (!file) return
+  const handleDownload = async (file) => {
+    if (!file || downloadState?.status === 'downloading') return
     setDownloadState({ file, progress: 0, status: 'downloading' })
     try {
       const { data } = await api.get(`/files/${file.id}/download`, {
@@ -243,7 +238,7 @@ export default function NoteDetailPage() {
           setDownloadState(prev => prev ? { ...prev, progress: pct } : prev)
         },
       })
-      setDownloadState(prev => prev ? { ...prev, progress: 100, status: 'completed' } : prev)
+      setDownloadState(prev => prev && prev.file?.id === file.id ? { ...prev, progress: 100, status: 'completed' } : prev)
       const url = window.URL.createObjectURL(data)
       const a = document.createElement('a')
       a.href = url
@@ -252,9 +247,11 @@ export default function NoteDetailPage() {
       a.click()
       window.URL.revokeObjectURL(url)
       document.body.removeChild(a)
-      setTimeout(() => { setDownloadState(null) }, 2500)
+      setTimeout(() => {
+        setDownloadState(prev => prev?.file?.id === file.id ? null : prev)
+      }, 2500)
     } catch (err) {
-      setDownloadState(prev => prev ? { ...prev, status: 'error' } : prev)
+      setDownloadState(prev => prev && prev.file?.id === file.id ? { ...prev, status: 'error' } : prev)
       toast.error('Ошибка скачивания')
     }
   }
@@ -416,7 +413,7 @@ export default function NoteDetailPage() {
       >
         {note.content ? (
           <div className="markdown-body">
-            <ReactMarkdown remarkPlugins={[remarkGfm]}>{note.content}</ReactMarkdown>
+            <MarkdownWithFiles content={note.content} files={files} />
           </div>
         ) : (
           <p className="text-text-muted italic text-center py-8">Заметка пока пуста</p>
@@ -498,8 +495,9 @@ export default function NoteDetailPage() {
                   <div className="absolute top-2 right-2 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                     <button
                       onClick={() => handleDownload(file)}
-                      className="p-1.5 bg-bg-card/90 border border-border rounded-lg text-text-muted hover:text-text-primary hover:border-accent-purple/50 transition-all"
+                      className="p-1.5 bg-bg-card/90 border border-border rounded-lg text-text-muted hover:text-text-primary hover:border-accent-purple/50 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
                       title="Скачать"
+                      disabled={downloadState?.status === 'downloading'}
                     >
                       <Download size={12} />
                     </button>
@@ -541,7 +539,7 @@ export default function NoteDetailPage() {
                 <h3 className="text-sm font-medium text-text-primary truncate">{previewFile.original_name}</h3>
                 <div className="flex items-center gap-2">
                   <button
-                    onClick={() => handleDownload(previewFile, true)}
+                    onClick={() => handleDownload(previewFile)}
                     className="btn-secondary text-xs px-3 py-1.5 flex items-center gap-1.5"
                     disabled={downloadState?.status === 'downloading'}
                   >
@@ -562,6 +560,16 @@ export default function NoteDetailPage() {
                     alt={previewFile.original_name}
                     className="max-w-full max-h-[75vh] object-contain"
                   />
+                ) : previewFile.mime_type.startsWith('video/') ? (
+                  <video
+                    src={`/api/files/${previewFile.id}/preview`}
+                    controls
+                    className="max-w-full max-h-[75vh]"
+                  >
+                    Ваш браузер не поддерживает видео
+                  </video>
+                ) : previewFile.mime_type.startsWith('audio/') ? (
+                  <audio src={`/api/files/${previewFile.id}/preview`} controls className="w-full max-w-md" />
                 ) : previewFile.mime_type === 'application/pdf' ? (
                   <iframe
                     src={`/api/files/${previewFile.id}/preview`}
@@ -579,7 +587,7 @@ export default function NoteDetailPage() {
                     <FileIcon size={48} className="text-text-muted" />
                     <p className="text-text-muted text-sm">Предпросмотр недоступен для этого типа файлов</p>
                     <button
-                      onClick={() => handleDownload(previewFile, true)}
+                      onClick={() => handleDownload(previewFile)}
                       className="btn-primary text-sm flex items-center gap-2"
                       disabled={downloadState?.status === 'downloading'}
                     >

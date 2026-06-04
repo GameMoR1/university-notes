@@ -5,7 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
-from app.core.database import engine, Base, AsyncSessionLocal
+from app.core.database import Base, get_session_maker
 from app.core.security import get_password_hash
 from app.models.models import Role, User, SiteSetting
 from app.core.config import settings
@@ -76,12 +76,21 @@ ROLES_DEFAULTS = [
 ]
 
 
-async def init_db():
-    """Создать таблицы и наполнить начальными данными."""
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
+async def run_migrations():
+    """Применить миграции Alembic (автоматически при запуске)."""
+    from alembic.config import Config
+    from alembic import command
 
-    async with AsyncSessionLocal() as db:
+    alembic_cfg = Config(settings.ALEMBIC_CFG_PATH)
+    alembic_cfg.set_main_option("sqlalchemy.url", settings.sync_database_url)
+    command.upgrade(alembic_cfg, "head")
+
+
+async def init_db():
+    """Применить миграции и наполнить начальными данными."""
+    await run_migrations()
+
+    async with get_session_maker()() as db:
         # Создаём роли
         for role_data in ROLES_DEFAULTS:
             result = await db.execute(select(Role).where(Role.name == role_data["name"]))

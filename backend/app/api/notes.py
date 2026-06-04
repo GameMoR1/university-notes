@@ -197,24 +197,35 @@ async def update_note(
     if not can_edit:
         raise HTTPException(403, "Нет прав для редактирования")
 
+    changed = []
     if data.title is not None:
         note.title = data.title
+        changed.append("заголовок")
     if data.content is not None:
         note.content = data.content
+        changed.append("содержимое")
     if data.is_published is not None:
         if not current_user.role.can_publish_notes and not current_user.role.can_manage_users:
             raise HTTPException(403, "Нет прав для публикации")
         note.is_published = data.is_published
+        changed.append("публикация")
     if data.folder_id is not None:
         note.folder_id = data.folder_id
+        changed.append("папка")
     if data.tag_ids is not None:
         tags = (await db.execute(select(Tag).where(Tag.id.in_(data.tag_ids)))).scalars().all()
         note.tags = list(tags)
+        changed.append("теги")
     if data.linked_note_ids is not None:
         linked = (await db.execute(select(Note).where(Note.id.in_(data.linked_note_ids)))).scalars().all()
         note.linked_notes = list(linked)
+        changed.append("связи")
 
-    log = ActivityLog(user_id=current_user.id, action="update_note", entity_type="note", entity_id=note.id)
+    log = ActivityLog(
+        user_id=current_user.id, action="update_note",
+        entity_type="note", entity_id=note.id,
+        details=f"{note.title}: {', '.join(changed)}" if changed else note.title,
+    )
     db.add(log)
     await db.commit()
 
@@ -263,7 +274,8 @@ async def toggle_publish(
     log = ActivityLog(
         user_id=current_user.id,
         action="publish_note" if note.is_published else "unpublish_note",
-        entity_type="note", entity_id=note_id
+        entity_type="note", entity_id=note_id,
+        details=note.title,
     )
     db.add(log)
     await db.commit()

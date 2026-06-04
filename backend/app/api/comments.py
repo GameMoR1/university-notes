@@ -85,7 +85,12 @@ async def add_comment(
     db.add(comment)
     await db.flush()
 
-    log = ActivityLog(user_id=current_user.id, action="add_comment", entity_type="note", entity_id=note_id)
+    preview = data.content[:80] + "..." if len(data.content) > 80 else data.content
+    log = ActivityLog(
+        user_id=current_user.id, action="add_comment",
+        entity_type="note", entity_id=note_id,
+        details=preview,
+    )
     db.add(log)
     await db.commit()
 

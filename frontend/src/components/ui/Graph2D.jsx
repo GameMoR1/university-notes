@@ -139,8 +139,18 @@ export default function Graph2D({
   useEffect(() => {
     const canvas = canvasRef.current
     if (!canvas) return
+    const dpr = window.devicePixelRatio || 1
     const ctx = canvas.getContext('2d')
     let t = 0
+
+    const resize = () => {
+      const W = dimensions.width
+      const H = dimensions.height
+      canvas.width = W * dpr
+      canvas.height = H * dpr
+      ctx.scale(dpr, dpr)
+    }
+    resize()
 
     const transformPoint = (x, y) => ({
       tx: (x + offsetRef.current.x) * scaleRef.current,
@@ -152,9 +162,12 @@ export default function Graph2D({
       const W = dimensions.width
       const H = dimensions.height
 
+      ctx.save()
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
       ctx.clearRect(0, 0, W, H)
       ctx.fillStyle = COLORS.bg
       ctx.fillRect(0, 0, W, H)
+      ctx.restore()
 
       // Stars
       ctx.save()
@@ -204,7 +217,7 @@ export default function Graph2D({
         const isHovered = hoveredId === node.id
         const isDimmed = highlightActive && focusIds && !focusIds.has(node.id)
 
-        const baseSize = 6 + Math.min((node.links_count || 0) * 2, 8) + Math.min((node.views_count || 0) * 0.1, 3)
+        const baseSize = 8 + Math.min((node.links_count || 0) * 2, 10) + Math.min((node.views_count || 0) * 0.1, 4)
         const pulse = Math.sin(t * 1.5 + node.id) * 1.5
         const size = isSelected ? baseSize * 1.3 : isHovered ? baseSize * 1.15 : baseSize + pulse * 0.3
         const color = getNodeColor(node, isDimmed)
@@ -242,15 +255,34 @@ export default function Graph2D({
         if (scaleRef.current > 0.35) {
           ctx.save()
           ctx.globalAlpha = isDimmed && !isSelected && !isHovered ? 0.35 : 1
-          ctx.font = isSelected ? '600 10px Inter, system-ui, sans-serif' : isHovered ? '500 9px Inter, system-ui, sans-serif' : '400 8px Inter, system-ui, sans-serif'
+          const fontSize = isSelected ? 13 : isHovered ? 12 : 11
+          ctx.font = `${isSelected ? '600' : '500'} ${fontSize}px Inter, system-ui, sans-serif`
           ctx.textAlign = 'center'
           ctx.textBaseline = 'top'
-          const label = node.title.length > 22 ? node.title.slice(0, 20) + '…' : node.title
+          const label = node.title.length > 30 ? node.title.slice(0, 28) + '…' : node.title
 
-          ctx.fillStyle = '#0d0d0f'
-          ctx.fillText(label, tx + 1, ty + size + 5)
-          ctx.fillText(label, tx, ty + size + 6)
-          ctx.fillText(label, tx - 1, ty + size + 5)
+          // Label background pill
+          const textW = ctx.measureText(label).width
+          const pad = 6
+          const pillX = tx - textW / 2 - pad
+          const pillY = ty + size + 3
+          const pillH = fontSize + 8
+          ctx.fillStyle = 'rgba(6, 6, 10, 0.8)'
+          ctx.shadowColor = 'transparent'
+          ctx.shadowBlur = 0
+          ctx.beginPath()
+          const r = 4
+          ctx.moveTo(pillX + r, pillY)
+          ctx.lineTo(pillX + textW + pad * 2 - r, pillY)
+          ctx.quadraticCurveTo(pillX + textW + pad * 2, pillY, pillX + textW + pad * 2, pillY + r)
+          ctx.lineTo(pillX + textW + pad * 2, pillY + pillH - r)
+          ctx.quadraticCurveTo(pillX + textW + pad * 2, pillY + pillH, pillX + textW + pad * 2 - r, pillY + pillH)
+          ctx.lineTo(pillX + r, pillY + pillH)
+          ctx.quadraticCurveTo(pillX, pillY + pillH, pillX, pillY + pillH - r)
+          ctx.lineTo(pillX, pillY + r)
+          ctx.quadraticCurveTo(pillX, pillY, pillX + r, pillY)
+          ctx.closePath()
+          ctx.fill()
 
           ctx.fillStyle = isSelected ? '#a78bfa' : isHovered ? '#f1f0f5' : COLORS.label
           ctx.fillText(label, tx, ty + size + 5)
@@ -290,8 +322,8 @@ export default function Graph2D({
       if (!pos) continue
       const dx = pos.x - x
       const dy = pos.y - y
-      const baseSize = 6 + Math.min((nodes[i].links_count || 0) * 2, 8) + Math.min((nodes[i].views_count || 0) * 0.1, 3)
-      if (Math.sqrt(dx * dx + dy * dy) < baseSize + 8) return nodes[i]
+      const baseSize = 8 + Math.min((nodes[i].links_count || 0) * 2, 10) + Math.min((nodes[i].views_count || 0) * 0.1, 4)
+      if (Math.sqrt(dx * dx + dy * dy) < baseSize + 10) return nodes[i]
     }
     return null
   }, [nodes])
