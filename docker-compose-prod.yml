@@ -1,8 +1,7 @@
 # ── Запуск: docker compose -f docker-compose-prod.yml up -d ────────────────────
 #
-#  Все переменные имеют значения по умолчанию — можно запускать вообще без .env.
-#  Для кастомизации создайте .env рядом с этим файлом или укажите свой:
-#    docker compose -f docker-compose-prod.yml --env-file .env.prod up -d
+#  Креды тянутся из .env в той же папке (автоматически).
+#  Если .env нет — используются значения по умолчанию (небезопасно!).
 # ────────────────────────────────────────────────────────────────────────────
 
 services:
@@ -51,7 +50,6 @@ services:
     container_name: usuz-backend
     restart: unless-stopped
     environment:
-      TEST: "false"
       POSTGRES_HOST: db
       POSTGRES_PORT: 5432
       MINIO_ENDPOINT: minio:9000
@@ -69,6 +67,8 @@ services:
     depends_on:
       db:
         condition: service_healthy
+      minio:
+        condition: service_started
     volumes:
       - backend_data:/app/data
 

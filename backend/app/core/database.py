@@ -13,13 +13,9 @@ _engine = None
 def get_engine():
     global _engine
     if _engine is None:
-        url = settings.database_url
-        if settings.TEST:
-            _engine = create_async_engine(
-                url, echo=settings.DEBUG, connect_args={"check_same_thread": False},
-            )
-        else:
-            _engine = create_async_engine(url, echo=settings.DEBUG, pool_pre_ping=True)
+        _engine = create_async_engine(
+            settings.database_url, echo=settings.DEBUG, pool_pre_ping=True,
+        )
     return _engine
 
 

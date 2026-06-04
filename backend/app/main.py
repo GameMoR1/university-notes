@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    logger.info(f"Запуск приложения. Режим: {'TEST (SQLite)' if settings.TEST else 'PRODUCTION (PostgreSQL)'}")
+    logger.info("Запуск приложения")
     await init_db()
     yield
     logger.info("Приложение остановлено")
@@ -59,8 +59,7 @@ app.include_router(files.router, prefix="/api")
 async def health():
     return {
         "status": "ok",
-        "mode": "test" if settings.TEST else "production",
-        "db": "SQLite" if settings.TEST else "PostgreSQL",
+        "db": "PostgreSQL",
     }
 
 

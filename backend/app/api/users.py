@@ -16,7 +16,6 @@ from app.schemas.schemas import (
     PaginatedUsers, PaginatedLogs, StatsOut, SystemHealth, ActivityHistory, MessageResponse
 )
 from app.api.deps import get_current_user, require_admin
-from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -366,8 +365,6 @@ async def admin_health(
         from app.core.database import get_session_maker
         async with get_session_maker()() as session:
             await session.execute(select(func.count()).select_from(Note))
-        if __debug__:
-            db_type = "SQLite" if "sqlite" in str(settings.database_url) else "PostgreSQL"
     except Exception as e:
         db_status = "error"
         db_error = str(e)

@@ -19,7 +19,7 @@ class FileStorage:
         self._client: Optional[Minio] = None
         self._local_path = Path(settings.MINIO_LOCAL_PATH)
         self._bucket = settings.MINIO_BUCKET
-        self._use_minio = not settings.TEST
+        self._use_minio = True
 
         if self._use_minio:
             try:

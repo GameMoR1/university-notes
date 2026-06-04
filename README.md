@@ -6,23 +6,15 @@
 
 ## 🚀 Быстрый старт
 
-### Тестовый режим (SQLite, без Docker)
+### Быстрый запуск (локальная разработка)
 
 ```bash
-# 1. Убедитесь, что установлены: Python 3.12+, Node.js 20+
-# 2. Запустите скрипт:
-chmod +x start-dev.sh
-./start-dev.sh
-```
+# Требуется: Python 3.12+, Node.js 20+, PostgreSQL 16+
 
-Или вручную:
-
-```bash
 # Backend
 cd backend
 python3 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
-# Убедитесь: в .env файле TEST=true
 uvicorn app.main:app --reload --port 8000
 
 # Frontend (другой терминал)
@@ -35,14 +27,8 @@ npm run dev
 
 ```bash
 cp .env.example .env
-# Отредактируйте .env: TEST=false, задайте POSTGRES_PASSWORD и SECRET_KEY
+# Отредактируйте .env: задайте POSTGRES_PASSWORD и SECRET_KEY
 docker compose up --build -d
-```
-
-### Docker тест-режим (SQLite)
-
-```bash
-docker compose -f docker-compose.test.yml up --build
 ```
 
 ---
@@ -70,9 +56,6 @@ docker compose -f docker-compose.test.yml up --build
 ## ⚙️ Конфигурация `.env`
 
 ```env
-TEST=true          # true → SQLite (разработка), false → PostgreSQL (продакшн)
-
-# PostgreSQL (если TEST=false):
 POSTGRES_USER=notes_user
 POSTGRES_PASSWORD=notes_password
 POSTGRES_DB=university_notes
@@ -108,9 +91,8 @@ university-notes/
 │       ├── store/          # Zustand state
 │       └── utils/          # API-клиент
 ├── .env                    # Конфигурация
-├── docker-compose.yml      # Production (PostgreSQL)
-├── docker-compose.test.yml # Test (SQLite)
-└── start-dev.sh            # Быстрый запуск
+├── docker-compose.yml      # Docker Compose (PostgreSQL)
+└── docker-compose-prod.yml # Production (PostgreSQL)
 ```
 
 ---
@@ -122,7 +104,7 @@ university-notes/
 - **SQLAlchemy 2.0** — ORM (async)
 - **Alembic** — миграции
 - **PostgreSQL 16** — продакшн БД
-- **SQLite + aiosqlite** — тестовая БД
+
 - **JWT** (python-jose) — аутентификация
 - **bcrypt** — хэширование паролей
 
@@ -151,7 +133,7 @@ university-notes/
 - [x] Отметка комментариев как "Ответ"
 - [x] **3D граф знаний** в стиле Obsidian (Three.js)
 - [x] Административная панель (пользователи, роли, логи)
-- [x] Переключение PostgreSQL ↔ SQLite через .env
+
 - [x] Docker Compose для обоих режимов
 
 ### 🔄 Планируется

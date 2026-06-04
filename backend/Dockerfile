@@ -14,7 +14,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Код
 COPY . .
 
-# Данные для SQLite
+# Директория для файлов MinIO (локальный режим)
 RUN mkdir -p data
 
 EXPOSE 8000

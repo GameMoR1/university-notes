@@ -1,4 +1,4 @@
-"""Базовые проверки API (TEST=true, SQLite)."""
+"""Базовые проверки API."""
 import pytest
 from httpx import ASGITransport, AsyncClient
 

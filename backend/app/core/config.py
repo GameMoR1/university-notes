@@ -1,9 +1,6 @@
 """
 Конфигурация приложения — читается из .env файла.
-TEST=true  → SQLite (локальная разработка)
-TEST=false → PostgreSQL (продакшн)
 """
-import os
 from pathlib import Path
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from dotenv import load_dotenv
@@ -23,7 +20,6 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
     # Режим
-    TEST: bool = True
     DEBUG: bool = True
     LOG_LEVEL: str = "INFO"
 
@@ -33,9 +29,6 @@ class Settings(BaseSettings):
     POSTGRES_DB: str = "university_notes"
     POSTGRES_HOST: str = "localhost"
     POSTGRES_PORT: int = 5432
-
-    # SQLite
-    SQLITE_DB_PATH: str = "./data/university_notes.db"
 
     # JWT
     SECRET_KEY: str = "change-me-in-production-minimum-32-characters"
@@ -57,9 +50,9 @@ class Settings(BaseSettings):
     MINIO_SECRET_KEY: str = "minioadmin"
     MINIO_BUCKET: str = "usuz-files"
     MINIO_SECURE: bool = False
-    MINIO_LOCAL_PATH: str = "./data/files"  # для TEST режима
+    MINIO_LOCAL_PATH: str = "./data/files"  # для локального режима (без MinIO)
 
-    # Демо-пользователи (создаются при TEST=true, см. init_db)
+    # Демо-пользователи
     TEACHER_EMAIL: str = "teacher@university.ru"
     TEACHER_PASSWORD: str = "Teacher123!"
     TEACHER_NAME: str = "Преподаватель (демо)"
@@ -70,10 +63,6 @@ class Settings(BaseSettings):
 
     @property
     def database_url(self) -> str:
-        if self.TEST:
-            db_path = Path(self.SQLITE_DB_PATH)
-            db_path.parent.mkdir(parents=True, exist_ok=True)
-            return f"sqlite+aiosqlite:///{db_path}"
         return (
             f"postgresql+asyncpg://{self.POSTGRES_USER}:{self.POSTGRES_PASSWORD}"
             f"@{self.POSTGRES_HOST}:{self.POSTGRES_PORT}/{self.POSTGRES_DB}"
@@ -81,10 +70,6 @@ class Settings(BaseSettings):
 
     @property
     def sync_database_url(self) -> str:
-        if self.TEST:
-            db_path = Path(self.SQLITE_DB_PATH)
-            db_path.parent.mkdir(parents=True, exist_ok=True)
-            return f"sqlite:///{db_path}"
         return (
             f"postgresql+psycopg2://{self.POSTGRES_USER}:{self.POSTGRES_PASSWORD}"
             f"@{self.POSTGRES_HOST}:{self.POSTGRES_PORT}/{self.POSTGRES_DB}"

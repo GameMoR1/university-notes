@@ -101,9 +101,8 @@ export default function LoginPage() {
             </p>
           </div>
 
-          {/* Тестовые данные (пользователи создаются на бэкенде при TEST=true) */}
           <div className="mt-4 p-3 bg-bg-tertiary rounded-xl border border-border">
-            <p className="text-text-muted text-xs font-medium mb-2">Демо-входы (если на сервере TEST=true):</p>
+            <p className="text-text-muted text-xs font-medium mb-2">Демо-входы:</p>
             <div className="space-y-1">
               {[
                 { email: 'admin@university.ru', pwd: 'Admin1234!', role: 'Администратор' },

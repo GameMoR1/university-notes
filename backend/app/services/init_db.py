@@ -1,23 +1,15 @@
 """
 Инициализация БД и создание начальных данных (роли + admin).
 """
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
-from sqlalchemy.orm import selectinload
-
-from app.core.database import Base, get_session_maker
-from app.core.security import get_password_hash
-from app.models.models import Role, User, SiteSetting
-from app.core.config import settings
 import logging
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
-from sqlalchemy.orm import selectinload
 
-from app.core.database import Base, get_session_maker
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.core.config import settings
+from app.core.database import get_session_maker
 from app.core.security import get_password_hash
 from app.models.models import Role, User, SiteSetting
-from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -124,22 +116,21 @@ async def init_db():
                 await db.commit()
                 logger.info(f"Администратор создан: {settings.ADMIN_EMAIL}")
 
-        # Демо преподаватель и студент (только TEST — для входа с разных ролей)
-        if settings.TEST:
-            await _ensure_demo_user(
-                db,
-                email=settings.TEACHER_EMAIL,
-                password=settings.TEACHER_PASSWORD,
-                name=settings.TEACHER_NAME,
-                role_name="teacher",
-            )
-            await _ensure_demo_user(
-                db,
-                email=settings.STUDENT_EMAIL,
-                password=settings.STUDENT_PASSWORD,
-                name=settings.STUDENT_NAME,
-                role_name="student",
-            )
+        # Демо преподаватель и студент
+        await _ensure_demo_user(
+            db,
+            email=settings.TEACHER_EMAIL,
+            password=settings.TEACHER_PASSWORD,
+            name=settings.TEACHER_NAME,
+            role_name="teacher",
+        )
+        await _ensure_demo_user(
+            db,
+            email=settings.STUDENT_EMAIL,
+            password=settings.STUDENT_PASSWORD,
+            name=settings.STUDENT_NAME,
+            role_name="student",
+        )
 
         # Создаём настройки сайта по умолчанию
         DEFAULT_SETTINGS = {
