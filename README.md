@@ -6,10 +6,20 @@
 
 ## 🚀 Быстрый старт
 
-### Быстрый запуск (локальная разработка)
+### Запуск через Docker (рекомендуется)
 
 ```bash
-# Требуется: Python 3.12+, Node.js 20+, PostgreSQL 16+
+cp .env.example .env
+# Отредактируйте .env: задайте POSTGRES_PASSWORD, SECRET_KEY, MINIO_ACCESS_KEY, MINIO_SECRET_KEY
+docker compose up --build -d
+```
+
+Фронтенд будет доступен на `http://localhost:3000`, бэкенд — `http://localhost:8000`.
+
+### Локальная разработка
+
+```bash
+# Требуется: Python 3.12+, Node.js 20+, PostgreSQL 16+, MinIO (или локальное хранение)
 
 # Backend
 cd backend
@@ -23,14 +33,6 @@ npm install
 npm run dev
 ```
 
-### Docker (PostgreSQL)
-
-```bash
-cp .env.example .env
-# Отредактируйте .env: задайте POSTGRES_PASSWORD и SECRET_KEY
-docker compose up --build -d
-```
-
 ---
 
 ## 📍 Адреса
@@ -40,6 +42,7 @@ docker compose up --build -d
 | Frontend | http://localhost:3000 (dev) / http://localhost:80 (docker) |
 | Backend API | http://localhost:8000/api |
 | Swagger Docs | http://localhost:8000/docs |
+| MinIO Console | http://localhost:9001 |
 
 ---
 
@@ -56,15 +59,21 @@ docker compose up --build -d
 ## ⚙️ Конфигурация `.env`
 
 ```env
+# PostgreSQL
 POSTGRES_USER=notes_user
 POSTGRES_PASSWORD=notes_password
 POSTGRES_DB=university_notes
-POSTGRES_HOST=db
 
-# JWT (ОБЯЗАТЕЛЬНО сменить в продакшне!):
+# JWT (ОБЯЗАТЕЛЬНО сменить в продакшне!)
 SECRET_KEY=your-super-secret-key-minimum-32-chars
 
-# Первый администратор:
+# MinIO (S3-совместимое хранилище для файлов)
+MINIO_ACCESS_KEY=minioadmin
+MINIO_SECRET_KEY=minioadmin
+MINIO_ENDPOINT=localhost:9000
+MINIO_BUCKET=usuz-files
+
+# Первый администратор (создаётся при первом запуске)
 ADMIN_EMAIL=admin@university.ru
 ADMIN_PASSWORD=Admin1234!
 ```
@@ -75,24 +84,25 @@ ADMIN_PASSWORD=Admin1234!
 
 ```
 university-notes/
-├── backend/                # Python FastAPI + SQLAlchemy
+├── backend/                # Python FastAPI + SQLAlchemy (async)
 │   ├── app/
-│   │   ├── main.py         # Точка входа
-│   │   ├── core/           # Config, DB, Security
-│   │   ├── models/         # ORM-модели
-│   │   ├── schemas/        # Pydantic-схемы
-│   │   ├── api/            # REST-роуты
-│   │   └── services/       # Логика (инициализация БД)
+│   │   ├── main.py         # Точка входа, CORS, роутеры
+│   │   ├── core/           # Config, DB (async session), MinIO client
+│   │   ├── models/         # SQLAlchemy ORM-модели
+│   │   ├── schemas/        # Pydantic-схемы запросов/ответов
+│   │   ├── api/            # REST-роуты (auth, notes, graph, admin…)
+│   │   └── services/       # Инициализация БД, сидирование
+│   ├── migrations/         # Alembic миграции
 │   └── requirements.txt
-├── frontend/               # React + Three.js + Tailwind
+├── frontend/               # React + Vite + Tailwind
 │   └── src/
-│       ├── pages/          # Страницы
-│       ├── components/     # UI-компоненты
-│       ├── store/          # Zustand state
-│       └── utils/          # API-клиент
+│       ├── pages/          # Страницы (Login, Notes, Graph, Admin…)
+│       ├── components/     # UI-компоненты (Header, Graph2D, Common…)
+│       ├── store/          # Zustand (auth, ui)
+│       └── utils/          # Axios API-клиент с перехватчиком токенов
 ├── .env                    # Конфигурация
-├── docker-compose.yml      # Docker Compose (PostgreSQL)
-└── docker-compose-prod.yml # Production (PostgreSQL)
+├── docker-compose.yml      # Docker Compose (MinIO + PostgreSQL + приложения)
+└── docker-compose-prod.yml # Production-сборка (nginx + SSL)
 ```
 
 ---
@@ -101,21 +111,24 @@ university-notes/
 
 ### Backend
 - **Python 3.12** + **FastAPI** — REST API
-- **SQLAlchemy 2.0** — ORM (async)
-- **Alembic** — миграции
-- **PostgreSQL 16** — продакшн БД
-
-- **JWT** (python-jose) — аутентификация
+- **SQLAlchemy 2.0** (async) — ORM
+- **Alembic** — миграции БД
+- **PostgreSQL 16** — база данных
+- **MinIO** — S3-совместимое файловое хранилище (с запасным локальным хранением)
+- **JWT** (python-jose) — access + refresh токены
 - **bcrypt** — хэширование паролей
+- **psutil** — мониторинг системы (CPU, RAM, диск)
 
 ### Frontend
-- **React 18** + **Vite**
-- **Three.js** + **@react-three/fiber** — 3D граф
-- **Framer Motion** — анимации
-- **CodeMirror 6** — Markdown-редактор
-- **react-markdown** — рендеринг Markdown
-- **Tailwind CSS** — стили
-- **Zustand** — state management
+- **React 18** + **Vite** — сборка
+- **Three.js** + **@react-three/fiber** / **drei** — 3D граф знаний
+- **Canvas 2D** — 2D граф знаний (альтернативный вид)
+- **Framer Motion** — анимации (табы, переключения папок, пиллы)
+- **CodeMirror 6** — Markdown-редактор с one-dark темой
+- **react-markdown** + **remark-gfm** — рендеринг Markdown
+- **Tailwind CSS** — стилизация
+- **Zustand** — управление состоянием
+- **lucide-react** — иконки
 
 ---
 
@@ -128,51 +141,65 @@ university-notes/
 - [x] Публикация/снятие с публикации
 - [x] Теги с цветовой маркировкой
 - [x] Связи между заметками
-- [x] Поиск и фильтрация
-- [x] Комментарии с вложенностью
-- [x] Отметка комментариев как "Ответ"
-- [x] **3D граф знаний** в стиле Obsidian (Three.js)
-- [x] Административная панель (пользователи, роли, логи)
-
-- [x] Docker Compose для обоих режимов
+- [x] Поиск и фильтрация по тегам/папкам
+- [x] Комментарии (вложенные, с отметкой «Ответ»)
+- [x] **3D граф знаний** (Three.js, force-directed layout)
+- [x] **2D граф знаний** (Canvas 2D, панорама/зум/перетаскивание)
+- [x] Переключение между папками в графе с анимацией
+- [x] Файловое хранилище (MinIO / локальное)
+- [x] Тёмная и светлая темы с сохранением в localStorage
+- [x] Административная панель:
+  - Статистика (пользователи, заметки, просмотры, комментарии…)
+  - Мониторинг (CPU, RAM, диск, PostgreSQL, MinIO)
+  - Управление пользователями и ролями
+  - Настройки сайта
+  - Логи действий
+  - Встроенная Swagger-документация API
+- [x] Активность (графики регистраций/заметок/комментариев)
+- [x] Docker Compose для разработки и продакшна
 
 ### 🔄 Планируется
 - [ ] Email-уведомления
 - [ ] Экспорт в PDF
-- [ ] Полнотекстовый поиск (PostgreSQL FTS)
+- [ ] Полнотекстовый поиск (FTS)
 - [ ] Личные сообщения
-- [ ] Прикрепление файлов
 
 ---
 
 ## 📚 Документация API
 
-Swagger UI доступен по адресу: `http://localhost:8000/docs`
+Swagger UI доступен:
+- По адресу `http://localhost:8000/docs`
+- Встроенном в админ-панель (вкладка «Статистика» → «API Документация»)
 
 ### Основные эндпоинты
 
 ```
-POST /api/auth/register    — регистрация
-POST /api/auth/login       — вход
-POST /api/auth/refresh     — обновление токена
+POST   /api/auth/register           — регистрация
+POST   /api/auth/login              — вход
+POST   /api/auth/refresh            — обновление токена
 
-GET  /api/notes            — список заметок
-POST /api/notes            — создать заметку
-GET  /api/notes/{id}       — получить заметку
-PUT  /api/notes/{id}       — обновить заметку
-DELETE /api/notes/{id}     — удалить заметку
+GET    /api/notes                   — список заметок
+POST   /api/notes                   — создать заметку
+GET    /api/notes/{id}              — получить заметку
+PUT    /api/notes/{id}              — обновить заметку
+DELETE /api/notes/{id}              — удалить заметку
 
-GET  /api/graph            — данные для графа
+GET    /api/graph                   — данные для графа
 
-GET  /api/tags             — список тегов
-POST /api/tags             — создать тег
+GET    /api/tags                    — список тегов
+POST   /api/tags                    — создать тег
 
-GET  /api/notes/{id}/comments   — комментарии
-POST /api/notes/{id}/comments   — добавить комментарий
+GET    /api/notes/{id}/comments     — комментарии
+POST   /api/notes/{id}/comments     — добавить комментарий
 
-GET  /api/users/me         — текущий пользователь
-GET  /api/admin/users      — список пользователей (admin)
-GET  /api/admin/stats      — статистика (admin)
+GET    /api/folders                 — список папок
+POST   /api/folders                 — создать папку
+
+GET    /api/users/me                — текущий пользователь
+GET    /api/admin/users             — список пользователей (admin)
+GET    /api/admin/stats             — статистика (admin)
+GET    /api/admin/health            — мониторинг системы (admin)
 ```
 
 ---
