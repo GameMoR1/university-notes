@@ -63,6 +63,10 @@ async def health():
     }
 
 
+@app.get("/api/openapi.json")
+async def openapi_json():
+    return app.openapi()
+
 @app.get("/")
 async def root():
     return {"message": "УСУЗ API v1.0", "docs": "/docs"}

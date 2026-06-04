@@ -2,22 +2,24 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { X, ChevronDown } from 'lucide-react'
 import { useState, useRef, useEffect } from 'react'
 
-export function Spinner({ size = 'md', className = '' }) {
-  const sizes = { sm: 'w-4 h-4', md: 'w-6 h-6', lg: 'w-10 h-10' }
+export function PixelLoader({ text = 'loading...', size = 'md', className = '' }) {
+  const fontSize = { sm: 'text-sm', md: 'text-base', lg: 'text-xl' }
   return (
-    <div className={`${sizes[size]} ${className}`}>
-      <div className="w-full h-full border-2 border-accent-purple/30 border-t-accent-purple rounded-full animate-spin" />
-    </div>
+    <>
+      <div className={`pixel-loader ${fontSize[size]} tracking-wider ${className}`} aria-hidden="true">
+        {text.split('').map((ch, i) => (
+          <span key={i} style={{ animationDelay: `${i * 0.08}s` }}>{ch}</span>
+        ))}
+      </div>
+      <span className="sr-only" aria-live="polite">{text}</span>
+    </>
   )
 }
 
 export function PageLoader() {
   return (
     <div className="flex items-center justify-center h-full min-h-[300px]">
-      <div className="flex flex-col items-center gap-4">
-        <Spinner size="lg" />
-        <p className="text-text-muted text-sm animate-pulse">Загрузка...</p>
-      </div>
+      <PixelLoader text="loading..." size="lg" className="text-accent-purple-light" />
     </div>
   )
 }
@@ -105,7 +107,7 @@ export function InputModal({ isOpen, title, placeholder, value, onChange, onConf
             disabled={loading || !value.trim()}
             className="btn-primary text-sm px-6 flex items-center gap-2"
           >
-            {loading && <Spinner size="sm" />}
+            {loading && <PixelLoader text="..." size="sm" />}
             Сохранить
           </button>
         </div>
@@ -118,7 +120,7 @@ export function FolderSwitcher({ folders, selectedId, onSelect, showAll = true, 
   const allFolders = showAll ? [{ id: 'all', name: labelAll }, ...folders] : folders
 
   return (
-    <div className="flex items-center gap-1 p-1 bg-bg-secondary/50 backdrop-blur-md border border-white/5 rounded-2xl overflow-x-auto thin-scroll no-scrollbar mb-8">
+    <div className="flex items-center gap-1 p-1 bg-bg-secondary/50 backdrop-blur-md border border-border rounded-2xl overflow-x-auto thin-scroll no-scrollbar mb-4">
       <div className="flex items-center gap-1">
         {allFolders.map((f) => {
           const isActive = String(selectedId || 'all') === String(f.id)
@@ -126,19 +128,18 @@ export function FolderSwitcher({ folders, selectedId, onSelect, showAll = true, 
             <button
               key={f.id}
               onClick={() => onSelect(f.id === 'all' ? null : f.id)}
-              className={`relative px-5 py-2.5 text-xs font-semibold uppercase tracking-wider transition-all whitespace-nowrap rounded-xl ${isActive ? 'text-white' : 'text-text-muted hover:text-text-primary hover:bg-white/5'
-                }`}
+              className={`relative px-4 py-2 text-xs font-semibold uppercase tracking-wider whitespace-nowrap rounded-xl transition-all ${
+                isActive ? 'text-white' : 'text-text-muted hover:text-text-primary hover:bg-bg-hover'
+              }`}
             >
-              <AnimatePresence>
-                {isActive && (
-                  <motion.div
-                    layoutId="active-pill"
-                    className="absolute inset-0 bg-accent-purple rounded-xl -z-10 shadow-lg shadow-accent-purple/20"
-                    transition={{ type: "spring", bounce: 0.2, duration: 0.6 }}
-                  />
-                )}
-              </AnimatePresence>
-              {f.name}
+              {isActive && (
+                <motion.div
+                  layoutId="folder-pill"
+                  className="absolute inset-0 bg-accent-purple rounded-xl shadow-lg shadow-accent-purple/25"
+                  transition={{ type: "spring", bounce: 0.2, duration: 0.6 }}
+                />
+              )}
+              <span className="relative z-10">{f.name}</span>
             </button>
           )
         })}

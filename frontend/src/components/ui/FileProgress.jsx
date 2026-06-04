@@ -1,5 +1,6 @@
 import { motion, AnimatePresence } from 'framer-motion'
-import { Upload, Download, CheckCircle, XCircle, Loader2, FileIcon, X } from 'lucide-react'
+import { Upload, Download, CheckCircle, XCircle, FileIcon, X } from 'lucide-react'
+import { PixelLoader } from '@/components/ui/Common'
 
 const ICONS = {
   upload: Upload,
@@ -42,9 +43,9 @@ export default function FileProgress({ file, progress, status, type = 'upload', 
             ) : isError ? (
               <XCircle size={20} />
             ) : (
-              <motion.div animate={{ rotate: [0, 360] }} transition={{ repeat: Infinity, duration: 2, ease: 'linear' }}>
-                <Loader2 size={18} />
-              </motion.div>
+              <div className="flex items-center justify-center w-5 h-5">
+                  <PixelLoader text="..." size="sm" className="text-accent-purple-light scale-75" />
+                </div>
             )}
           </div>
 

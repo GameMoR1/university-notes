@@ -1,10 +1,19 @@
 import { useRef, useEffect, useState, useCallback, useMemo } from 'react'
 
+const getCssVar = (name) => {
+  if (typeof document === 'undefined') return '6 6 10'
+  return getComputedStyle(document.documentElement).getPropertyValue(name).trim()
+}
+
 const COLORS = {
-  bg: '#06060a',
+  bg: () => `rgb(${getCssVar('--bg-graph')})`,
+  labelPill: () => {
+    const v = getCssVar('--bg-graph').split(/\s+/).slice(0, 3).join(', ')
+    return `rgba(${v}, 0.8)`
+  },
   node: '#7c3aed',
   nodeDim: '#2a2a35',
-  edge: '#4c1d95',
+  edge: '#6d28d9',
   edgeBright: '#a78bfa',
   label: '#9d9aae',
   labelActive: '#f1f0f5',
@@ -165,20 +174,20 @@ export default function Graph2D({
       ctx.save()
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
       ctx.clearRect(0, 0, W, H)
-      ctx.fillStyle = COLORS.bg
+      ctx.fillStyle = COLORS.bg()
       ctx.fillRect(0, 0, W, H)
       ctx.restore()
 
       // Stars
       ctx.save()
-      for (let i = 0; i < 80; i++) {
+      for (let i = 0; i < 120; i++) {
         const sx = ((i * 137.5 + 50) % W)
         const sy = ((i * 97.3 + 20) % H)
-        const ss = 0.5 + Math.sin(t + i) * 0.5
-        ctx.globalAlpha = 0.08 + ss * 0.1
-        ctx.fillStyle = '#a78bfa'
+        const ss = 0.5 + Math.sin(t + i * 0.7) * 0.5
+        ctx.globalAlpha = 0.15 + ss * 0.25
+        ctx.fillStyle = '#c4b5fd'
         ctx.beginPath()
-        ctx.arc(sx, sy, ss * 0.8, 0, Math.PI * 2)
+        ctx.arc(sx, sy, 0.6 + ss * 1.2, 0, Math.PI * 2)
         ctx.fill()
       }
       ctx.restore()
@@ -190,14 +199,14 @@ export default function Graph2D({
         if (!sp || !tp) return
 
         const isFocused = highlightActive && focusIds && (focusIds.has(source) && focusIds.has(target))
-        const opacity = !highlightActive ? 0.15 : isFocused ? 0.7 : 0.04
+        const opacity = !highlightActive ? 0.45 : isFocused ? 0.85 : 0.08
 
         ctx.save()
         ctx.globalAlpha = opacity
         ctx.strokeStyle = isFocused ? COLORS.edgeBright : COLORS.edge
-        ctx.lineWidth = isFocused ? 1.5 : 0.8
-        ctx.shadowColor = isFocused ? COLORS.edgeBright : 'transparent'
-        ctx.shadowBlur = isFocused ? 6 : 0
+        ctx.lineWidth = isFocused ? 2 : 1.5
+        ctx.shadowColor = isFocused ? COLORS.edgeBright : COLORS.edge
+        ctx.shadowBlur = isFocused ? 8 : 2
 
         const { tx: x1, ty: y1 } = transformPoint(sp.x, sp.y)
         const { tx: x2, ty: y2 } = transformPoint(tp.x, tp.y)
@@ -267,7 +276,7 @@ export default function Graph2D({
           const pillX = tx - textW / 2 - pad
           const pillY = ty + size + 3
           const pillH = fontSize + 8
-          ctx.fillStyle = 'rgba(6, 6, 10, 0.8)'
+          ctx.fillStyle = COLORS.labelPill()
           ctx.shadowColor = 'transparent'
           ctx.shadowBlur = 0
           ctx.beginPath()
@@ -381,14 +390,35 @@ export default function Graph2D({
     dragNodeRef.current = null
   }, [onNodeClick])
 
-  const handleWheel = useCallback((e) => {
-    e.preventDefault()
-    const delta = e.deltaY > 0 ? 0.92 : 1.08
-    scaleRef.current = Math.max(0.15, Math.min(4, scaleRef.current * delta))
+  // Non-passive wheel listener for preventDefault
+  useEffect(() => {
+    const canvas = canvasRef.current
+    if (!canvas) return
+    const handler = (e) => {
+      e.preventDefault()
+      const rect = canvas.getBoundingClientRect()
+      const mouseX = e.clientX - rect.left
+      const mouseY = e.clientY - rect.top
+
+      const oldScale = scaleRef.current
+      const delta = e.deltaY > 0 ? 0.9 : 1.1
+      const newScale = Math.max(0.15, Math.min(4, oldScale * delta))
+
+      // Zoom towards cursor
+      if (oldScale !== newScale) {
+        offsetRef.current = {
+          x: mouseX / newScale - mouseX / oldScale + offsetRef.current.x,
+          y: mouseY / newScale - mouseY / oldScale + offsetRef.current.y,
+        }
+        scaleRef.current = newScale
+      }
+    }
+    canvas.addEventListener('wheel', handler, { passive: false })
+    return () => canvas.removeEventListener('wheel', handler)
   }, [])
 
   return (
-    <div ref={containerRef} className="relative w-full h-full overflow-hidden" style={{ background: COLORS.bg }}>
+    <div ref={containerRef} className="relative w-full h-full overflow-hidden" style={{ background: COLORS.bg() }}>
       <canvas
         ref={canvasRef}
         width={dimensions.width}
@@ -397,7 +427,6 @@ export default function Graph2D({
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}
         onMouseLeave={() => { draggingRef.current = false; dragNodeRef.current = null; onNodeHover(null) }}
-        onWheel={handleWheel}
         className="w-full h-full"
       />
       <div className="absolute bottom-4 left-1/2 -translate-x-1/2 text-xs text-text-muted pointer-events-none max-w-md text-center">

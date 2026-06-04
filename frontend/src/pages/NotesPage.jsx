@@ -3,7 +3,7 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import api from '@/utils/api'
 import { useAuthStore } from '@/store/authStore'
-import { PageLoader, EmptyState, Badge, FolderSwitcher } from '@/components/ui/Common'
+import { PageLoader, EmptyState, Badge, FolderSwitcher, PixelLoader } from '@/components/ui/Common'
 import { Search, Plus, BookOpen, Eye, MessageSquare, Tag, Filter, X, Clock, User, Globe, Lock, ChevronDown, FolderPlus, Star, Folder } from 'lucide-react'
 import { formatDistanceToNow } from 'date-fns'
 import { ru } from 'date-fns/locale'
@@ -148,7 +148,7 @@ function MoveToFolderModal({ isOpen, onClose, note, folders, onConfirm }) {
             disabled={loading}
             className="btn-primary text-sm px-6 flex items-center gap-2"
           >
-            {loading && <div className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />}
+            {loading && <PixelLoader text="..." size="sm" />}
             Готово
           </button>
         </div>

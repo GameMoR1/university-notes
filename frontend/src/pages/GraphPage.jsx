@@ -17,6 +17,7 @@ function NoteNode({ node, position, isSelected, isHovered, dimmed, onHover, onCl
   const meshRef = useRef()
   const glowRef = useRef()
   const [localHover, setLocalHover] = useState(false)
+  const theme = useUIStore((s) => s.theme)
 
   const color = useMemo(() => {
     const links = node.links_count || 0
@@ -108,7 +109,7 @@ function NoteNode({ node, position, isSelected, isHovered, dimmed, onHover, onCl
             anchorY="bottom"
             maxWidth={2.5}
             outlineWidth={0.004}
-            outlineColor="#0d0d0f"
+            outlineColor={theme === 'dark' ? '#0d0d0f' : '#ffffff'}
           >
             {node.title.length > 28 ? node.title.slice(0, 26) + '…' : node.title}
           </Text>
@@ -205,25 +206,27 @@ function GraphScene({
   positions,
 }) {
   const { camera, scene } = useThree()
+  const theme = useUIStore((s) => s.theme)
+  const bgColor = theme === 'dark' ? '#06060a' : '#f8f9fa'
 
   useEffect(() => {
     camera.position.set(0, 0, 18)
   }, [camera])
 
   useEffect(() => {
-    scene.fog = new THREE.FogExp2('#06060a', 0.045)
+    scene.fog = new THREE.FogExp2(bgColor, 0.045)
+    scene.background = new THREE.Color(bgColor)
     return () => { scene.fog = null }
-  }, [scene])
+  }, [scene, bgColor])
 
   return (
     <>
-      <color attach="background" args={['#06060a']} />
       <ambientLight intensity={0.35} />
       <pointLight position={[10, 10, 10]} intensity={1.4} color="#7c3aed" />
       <pointLight position={[-10, -10, -10]} intensity={0.75} color="#3b82f6" />
       <pointLight position={[0, 15, 0]} intensity={0.45} color="#e9d5ff" />
 
-      <Stars radius={100} depth={36} count={4200} factor={2.8} saturation={0} fade speed={0.35} />
+      {theme === 'dark' && <Stars radius={100} depth={36} count={4200} factor={2.8} saturation={0} fade speed={0.35} />}
       <BackdropConstellation />
       <ParticleField count={600} />
 
@@ -341,6 +344,7 @@ export default function GraphPage() {
   const [folderName, setFolderName] = useState('')
   const graphView = useUIStore((s) => s.graphView)
   const setGraphView = useUIStore((s) => s.setGraphView)
+  const theme = useUIStore((s) => s.theme)
 
   useEffect(() => {
     api.get('/folders').then(({ data }) => setFolders(data)).catch(() => {})
@@ -460,41 +464,7 @@ export default function GraphPage() {
 
   if (loading) return <PageLoader />
 
-  if (graphData.nodes.length === 0) {
-    return (
-      <div className="h-full flex flex-col relative bg-bg-primary overflow-hidden">
-        {/* Switcher is essential even in empty state to allow navigation back */}
-        <div className="absolute top-6 left-1/2 -translate-x-1/2 z-20 w-auto max-w-[90vw]">
-          <FolderSwitcher
-            folders={folders}
-            selectedId={folderId}
-            labelAll="Общий граф"
-            onSelect={(id) => setSearchParams(prev => {
-              if (id) prev.set('folder', id)
-              else prev.delete('folder')
-              return prev
-            })}
-          />
-        </div>
-
-        <div className="flex-1 flex items-center justify-center p-6 mt-16">
-          <EmptyState
-            icon={Network}
-            title={folderName ? `В папке "${folderName}" пока пусто` : "Граф пуст"}
-            description="Добавьте или опубликуйте хотя бы одну заметку, чтобы увидеть связи в этом разделе."
-            action={
-              <div className="flex gap-4">
-                <button onClick={() => navigate('/notes')} className="btn-secondary">К заметкам</button>
-                {canCreateNotes() && (
-                  <button onClick={() => navigate('/notes/new')} className="btn-primary">Создать заметку</button>
-                )}
-              </div>
-            }
-          />
-        </div>
-      </div>
-    )
-  }
+  const isEmpty = graphData.nodes.length === 0
 
   return (
     <div className="h-full flex relative overflow-hidden bg-bg-primary">
@@ -512,94 +482,122 @@ export default function GraphPage() {
         />
       </div>
 
-      {/* Canvas */}
-      <div className="flex-1 relative">
-        {graphView === '3d' ? (
-          <Canvas
-            camera={{ position: [0, 0, 18], fov: 60 }}
-            gl={{ antialias: true, alpha: false }}
-            style={{ background: '#06060a' }}
-          >
-            <GraphScene
-              nodes={filteredNodes}
-              edges={filteredEdges}
-              selectedId={highlightCenterId}
-              hoveredId={hoveredNode?.id}
-              focusIds={focusIds}
-              highlightActive={highlightActive}
-              onNodeClick={handleNodeClick}
-              onNodeHover={handleNodeHover}
-              positions={positions}
-            />
-          </Canvas>
-        ) : (
-          <Graph2D
-            nodes={filteredNodes}
-            edges={filteredEdges}
-            selectedId={highlightCenterId}
-            hoveredId={hoveredNode?.id}
-            focusIds={focusIds}
-            highlightActive={highlightActive}
-            onNodeClick={handleNodeClick}
-            onNodeHover={handleNodeHover}
-          />
-        )}
+      <AnimatePresence mode="wait">
+        <motion.div
+          key={folderId || 'all'}
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -10 }}
+          transition={{ duration: 0.2 }}
+          className="flex-1 relative"
+        >
+          {isEmpty ? (
+            <div className="flex-1 flex items-center justify-center p-6 mt-16">
+              <EmptyState
+                icon={Network}
+                title={folderName ? `В папке "${folderName}" пока пусто` : "Граф пуст"}
+                description="Добавьте или опубликуйте хотя бы одну заметку, чтобы увидеть связи в этом разделе."
+                action={
+                  <div className="flex gap-4">
+                    <button onClick={() => navigate('/notes')} className="btn-secondary">К заметкам</button>
+                    {canCreateNotes() && (
+                      <button onClick={() => navigate('/notes/new')} className="btn-primary">Создать заметку</button>
+                    )}
+                  </div>
+                }
+              />
+            </div>
+          ) : (
+            <>
+              {graphView === '3d' ? (
+                <Canvas
+                  camera={{ position: [0, 0, 18], fov: 60 }}
+                  gl={{ antialias: true, alpha: false }}
+                  style={{ background: theme === 'dark' ? '#06060a' : '#f8f9fa' }}
+                >
+                  <GraphScene
+                    nodes={filteredNodes}
+                    edges={filteredEdges}
+                    selectedId={highlightCenterId}
+                    hoveredId={hoveredNode?.id}
+                    focusIds={focusIds}
+                    highlightActive={highlightActive}
+                    onNodeClick={handleNodeClick}
+                    onNodeHover={handleNodeHover}
+                    positions={positions}
+                  />
+                </Canvas>
+              ) : (
+                <Graph2D
+                  nodes={filteredNodes}
+                  edges={filteredEdges}
+                  selectedId={highlightCenterId}
+                  hoveredId={hoveredNode?.id}
+                  focusIds={focusIds}
+                  highlightActive={highlightActive}
+                  onNodeClick={handleNodeClick}
+                  onNodeHover={handleNodeHover}
+                />
+              )}
 
-        {/* Статистика поверх canvas */}
-        <div className="absolute top-4 left-4 flex items-center gap-3 pointer-events-none">
-          <div className="glass rounded-xl px-4 py-2 flex items-center gap-3 text-sm">
-            <Network size={16} className="text-accent-purple-light" />
-            <span className="text-text-muted">{filteredNodes.length} заметок</span>
-            <span className="text-border">|</span>
-            <span className="text-text-muted">{filteredEdges.length} связей</span>
-          </div>
-        </div>
-
-        {/* Переключатель 2D / 3D */}
-        <div className="absolute top-4 right-4 z-10">
-          <div className="glass rounded-xl p-1 flex items-center gap-1">
-            <button
-              onClick={() => setGraphView('2d')}
-              className={`p-2 rounded-lg transition-all ${graphView === '2d' ? 'bg-accent-purple text-white shadow-lg shadow-accent-purple/25' : 'text-text-muted hover:text-text-primary hover:bg-bg-tertiary'}`}
-              title="2D вид"
-            >
-              <LayoutGrid size={16} />
-            </button>
-            <button
-              onClick={() => setGraphView('3d')}
-              className={`p-2 rounded-lg transition-all ${graphView === '3d' ? 'bg-accent-purple text-white shadow-lg shadow-accent-purple/25' : 'text-text-muted hover:text-text-primary hover:bg-bg-tertiary'}`}
-              title="3D вид"
-            >
-              <Cuboid size={16} />
-            </button>
-          </div>
-        </div>
-
-        {/* Тост при наведении */}
-        <AnimatePresence>
-          {hoveredNode && !selectedNode && (
-            <motion.div
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0 }}
-              className="absolute bottom-24 left-1/2 -translate-x-1/2 glass rounded-xl px-4 py-2.5 pointer-events-none max-w-xs text-center"
-            >
-              <div className="text-sm font-medium text-text-primary">{hoveredNode.title}</div>
-              <div className="text-xs text-text-muted mt-0.5">
-                {hoveredNode.views_count} просм. · {hoveredNode.comments_count} комм. · {hoveredNode.links_count} связей
+              {/* Статистика поверх canvas */}
+              <div className="absolute top-4 left-4 flex items-center gap-3 pointer-events-none">
+                <div className="glass rounded-xl px-4 py-2 flex items-center gap-3 text-sm">
+                  <Network size={16} className="text-accent-purple-light" />
+                  <span className="text-text-muted">{filteredNodes.length} заметок</span>
+                  <span className="text-border">|</span>
+                  <span className="text-text-muted">{filteredEdges.length} связей</span>
+                </div>
               </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
 
-        {/* Подсказка */}
-        <div className="absolute bottom-4 left-1/2 -translate-x-1/2 text-xs text-text-muted pointer-events-none max-w-md text-center">
-          {graphView === '3d'
-            ? 'Перетаскивание — вращение · Колесо — масштаб · Клик — фокус: соседи светлее, остальные приглушены'
-            : 'Перетаскивание — панорама · Колесо — масштаб · Клик — фокус · Тащи узел — переместить'
-          }
-        </div>
-      </div>
+              {/* Переключатель 2D / 3D */}
+              <div className="absolute top-4 right-4 z-10">
+                <div className="glass rounded-xl p-1 flex items-center gap-1">
+                  <button
+                    onClick={() => setGraphView('2d')}
+                    className={`p-2 rounded-lg transition-all ${graphView === '2d' ? 'bg-accent-purple text-white shadow-lg shadow-accent-purple/25' : 'text-text-muted hover:text-text-primary hover:bg-bg-tertiary'}`}
+                    title="2D вид"
+                  >
+                    <LayoutGrid size={16} />
+                  </button>
+                  <button
+                    onClick={() => setGraphView('3d')}
+                    className={`p-2 rounded-lg transition-all ${graphView === '3d' ? 'bg-accent-purple text-white shadow-lg shadow-accent-purple/25' : 'text-text-muted hover:text-text-primary hover:bg-bg-tertiary'}`}
+                    title="3D вид"
+                  >
+                    <Cuboid size={16} />
+                  </button>
+                </div>
+              </div>
+
+              {/* Тост при наведении */}
+              <AnimatePresence>
+                {hoveredNode && !selectedNode && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0 }}
+                    className="absolute bottom-24 left-1/2 -translate-x-1/2 glass rounded-xl px-4 py-2.5 pointer-events-none max-w-xs text-center"
+                  >
+                    <div className="text-sm font-medium text-text-primary">{hoveredNode.title}</div>
+                    <div className="text-xs text-text-muted mt-0.5">
+                      {hoveredNode.views_count} просм. · {hoveredNode.comments_count} комм. · {hoveredNode.links_count} связей
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
+              {/* Подсказка */}
+              <div className="absolute bottom-4 left-1/2 -translate-x-1/2 text-xs text-text-muted pointer-events-none max-w-md text-center">
+                {graphView === '3d'
+                  ? 'Перетаскивание — вращение · Колесо — масштаб · Клик — фокус: соседи светлее, остальные приглушены'
+                  : 'Перетаскивание — панорама · Колесо — масштаб · Клик — фокус · Тащи узел — переместить'
+                }
+              </div>
+            </>
+          )}
+        </motion.div>
+      </AnimatePresence>
 
       {/* Правая панель */}
       <AnimatePresence>

@@ -1,8 +1,8 @@
 import { NavLink, useNavigate, useLocation, useSearchParams } from 'react-router-dom'
 import { useAuthStore } from '@/store/authStore'
 import {
-  BookOpen, Network, Shield, User, LogOut,
-  PenLine, ChevronRight, Sparkles, Folder, Plus, MoreVertical, Trash2, Star
+  BookOpen, Network, Shield, LogOut,
+  PenLine, ChevronRight, Sparkles, Folder, Plus, Trash2, Star
 } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useState, useEffect } from 'react'
@@ -36,33 +36,46 @@ function FolderList({ folders, setFolders }) {
 
   return (
     <div className="space-y-0.5">
-      {folders.map(folder => (
-        <NavLink
-          key={folder.id}
-          to={`/notes?folder=${folder.id}`}
-          className={() => {
-            const isActive = String(currentFolderId) === String(folder.id)
-            return `sidebar-link group/folder ${isActive ? 'active' : ''}`
-          }}
-        >
-          <Folder size={16} className="text-text-muted group-hover/folder:text-accent-purple-light transition-colors" />
-          <span className="text-xs font-medium truncate flex-1">{folder.name}</span>
-          <div className="flex items-center gap-0.5 opacity-0 group-hover/folder:opacity-100 transition-all">
-            <button 
-                onClick={(e) => toggleFavorite(folder.id, e)}
-                className={`p-1 hover:bg-amber-500/10 rounded transition-all ${folder.is_favorite ? 'text-amber-400 opacity-100' : 'text-text-muted hover:text-amber-400'}`}
-            >
-                <Star size={12} fill={folder.is_favorite ? "currentColor" : "none"} />
-            </button>
-            <button 
-                onClick={(e) => deleteFolder(folder.id, e)}
-                className="p-1 hover:bg-red-500/10 hover:text-red-400 rounded transition-all"
-            >
-                <Trash2 size={12} />
-            </button>
-          </div>
-        </NavLink>
-      ))}
+      {folders.map(folder => {
+        const isActive = String(currentFolderId) === String(folder.id)
+        return (
+          <NavLink
+            key={folder.id}
+            to={`/notes?folder=${folder.id}`}
+            className={`relative flex items-center gap-3 px-3 py-2.5 rounded-lg cursor-pointer select-none transition-all duration-150 group/folder ${
+              isActive
+                ? 'text-text-accent'
+                : 'text-text-secondary hover:text-text-primary hover:bg-bg-tertiary'
+            }`}
+          >
+            <AnimatePresence>
+              {isActive && (
+                <motion.div
+                  layoutId="sidebar-folder-pill"
+                  className="absolute inset-0 bg-accent-purple/15 border border-accent-purple/30 rounded-lg shadow-sm shadow-accent-purple/10"
+                  transition={{ type: "spring", bounce: 0.2, duration: 0.6 }}
+                />
+              )}
+            </AnimatePresence>
+            <Folder size={16} className="relative z-10 text-text-muted group-hover/folder:text-accent-purple-light transition-colors" />
+            <span className="relative z-10 text-xs font-medium truncate flex-1">{folder.name}</span>
+            <div className="relative z-10 flex items-center gap-0.5 opacity-0 group-hover/folder:opacity-100 transition-all">
+              <button 
+                  onClick={(e) => toggleFavorite(folder.id, e)}
+                  className={`p-1 hover:bg-amber-500/10 rounded transition-all ${folder.is_favorite ? 'text-amber-400 opacity-100' : 'text-text-muted hover:text-amber-400'}`}
+              >
+                  <Star size={12} fill={folder.is_favorite ? "currentColor" : "none"} />
+              </button>
+              <button 
+                  onClick={(e) => deleteFolder(folder.id, e)}
+                  className="p-1 hover:bg-red-500/10 hover:text-red-400 rounded transition-all"
+              >
+                  <Trash2 size={12} />
+              </button>
+            </div>
+          </NavLink>
+        )
+      })}
     </div>
   )
 }
@@ -130,44 +143,79 @@ export default function Sidebar() {
 
       {/* Навигация */}
       <nav className="flex-1 p-3 space-y-1 overflow-auto thin-scroll">
-        {navItems.map(({ to, icon: Icon, label }) => (
-          <NavLink
-            key={to}
-            to={to}
-            className={() => {
-              const isNotes = to === '/notes'
-              const isActive = isNotes 
-                ? (pathname === '/notes' && !folderId)
-                : pathname.startsWith(to)
-              return `sidebar-link ${isActive ? 'active' : ''}`
-            }}
+        {navItems.map(({ to, icon: Icon, label }) => {
+          const isNotes = to === '/notes'
+          const isActive = isNotes 
+            ? (pathname === '/notes' && !folderId)
+            : pathname.startsWith(to)
+          return (
+            <NavLink
+              key={to}
+              to={to}
+              className={`relative flex items-center gap-3 px-3 py-2.5 rounded-lg cursor-pointer select-none transition-all duration-150 ${
+              isActive
+                  ? 'text-text-accent'
+                  : 'text-text-secondary hover:text-text-primary hover:bg-bg-tertiary'
+            }`}
           >
-            <Icon className="w-4.5 h-4.5 flex-shrink-0" size={18} />
-            <span className="text-sm font-medium">{label}</span>
-          </NavLink>
-        ))}
+            <AnimatePresence>
+              {isActive && (
+                <motion.div
+                  layoutId="sidebar-nav-pill"
+                    className="absolute inset-0 bg-accent-purple/15 border border-accent-purple/30 rounded-lg shadow-sm shadow-accent-purple/10"
+                    transition={{ type: "spring", bounce: 0.2, duration: 0.6 }}
+                  />
+                )}
+              </AnimatePresence>
+              <Icon className="relative z-10 w-4.5 h-4.5 flex-shrink-0" size={18} />
+              <span className="relative z-10 text-sm font-medium">{label}</span>
+            </NavLink>
+          )
+        })}
 
         {canCreateNotes() && (
           <NavLink
             to="/notes/new"
-            className={({ isActive }) =>
-              `sidebar-link ${isActive ? 'active' : ''}`
-            }
+            className={`relative flex items-center gap-3 px-3 py-2.5 rounded-lg cursor-pointer select-none transition-all duration-150 ${
+              pathname === '/notes/new'
+                ? 'text-text-accent'
+                : 'text-text-secondary hover:text-text-primary hover:bg-bg-tertiary'
+            }`}
           >
-            <PenLine size={18} className="flex-shrink-0" />
-            <span className="text-sm font-medium">Создать заметку</span>
+            <AnimatePresence>
+              {pathname === '/notes/new' && (
+                <motion.div
+                  layoutId="sidebar-nav-pill"
+                  className="absolute inset-0 bg-accent-purple/15 border border-accent-purple/30 rounded-lg shadow-sm shadow-accent-purple/10"
+                  transition={{ type: "spring", bounce: 0.2, duration: 0.6 }}
+                />
+              )}
+            </AnimatePresence>
+            <PenLine size={18} className="relative z-10 flex-shrink-0" />
+            <span className="relative z-10 text-sm font-medium">Создать заметку</span>
           </NavLink>
         )}
 
         {isAdmin() && (
           <NavLink
             to="/admin"
-            className={({ isActive }) =>
-              `sidebar-link ${isActive ? 'active' : ''}`
-            }
+            className={`relative flex items-center gap-3 px-3 py-2.5 rounded-lg cursor-pointer select-none transition-all duration-150 ${
+              pathname.startsWith('/admin')
+                ? 'text-text-accent'
+                : 'text-text-secondary hover:text-text-primary hover:bg-bg-tertiary'
+            }`}
           >
-            <Shield size={18} className="flex-shrink-0" />
-            <span className="text-sm font-medium">Администрирование</span>
+            <AnimatePresence>
+              {pathname.startsWith('/admin') && (
+                <motion.div
+                  layoutId="sidebar-nav-pill"
+                  className="absolute inset-0 bg-accent-purple/15 border border-accent-purple/30 rounded-lg shadow-sm shadow-accent-purple/10"
+                  transition={{ type: "spring", bounce: 0.2, duration: 0.6 }}
+                />
+              )}
+            </AnimatePresence>
+            <Shield size={18} className="relative z-10 flex-shrink-0" />
+            <span className="relative z-10 text-sm font-medium">Администрирование</span>
           </NavLink>
         )}
 

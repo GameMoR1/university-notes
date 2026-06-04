@@ -5,7 +5,7 @@ import logging
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func
+from sqlalchemy import select, func, text
 from sqlalchemy.orm import selectinload
 
 from app.core.database import get_db
@@ -265,6 +265,9 @@ async def admin_stats(
     total_folders = (await db.execute(select(func.count()).select_from(Folder))).scalar() or 0
     total_views = (await db.execute(select(func.coalesce(func.sum(Note.views_count), 0)).select_from(Note))).scalar() or 0
 
+    migration_result = await db.execute(text("SELECT version_num FROM alembic_version"))
+    migration_version = migration_result.scalar() or ""
+
     roles = (await db.execute(select(Role))).scalars().all()
     notes_by_role = {}
     for role in roles:
@@ -300,6 +303,7 @@ async def admin_stats(
         total_files=total_files,
         total_folders=total_folders,
         total_views=total_views,
+        migration_version=migration_version,
         notes_by_role=notes_by_role,
         recent_logs=recent_logs,
     )
@@ -372,6 +376,7 @@ async def admin_health(
     # Storage check (MinIO / local filesystem)
     storage_status = "ok"
     storage_error = None
+    storage_size = 0
     try:
         test_file = b"health-check"
         p = await file_storage.upload(0, ".health", test_file, "text/plain")
@@ -379,9 +384,20 @@ async def admin_health(
         await file_storage.delete(p)
         if d != test_file:
             storage_status = "degraded"
+        storage_size = await file_storage.get_total_size()
     except Exception as e:
         storage_status = "error"
         storage_error = str(e)
+
+    # Database size
+    db_size = 0
+    try:
+        from app.core.database import get_session_maker
+        async with get_session_maker()() as session:
+            result = await session.execute(text("SELECT pg_database_size(current_database())"))
+            db_size = result.scalar() or 0
+    except Exception:
+        pass
 
     # System info — расширенная статистика
     import psutil
@@ -488,6 +504,8 @@ async def admin_health(
             "write_bytes": disk_io.write_bytes if disk_io else 0,
             "read_count": disk_io.read_count if disk_io else 0,
             "write_count": disk_io.write_count if disk_io else 0,
+            "db_size": db_size,
+            "storage_size": storage_size,
         },
         network={
             "bytes_sent": net.bytes_sent if net else 0,

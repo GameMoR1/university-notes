@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useAuthStore } from '@/store/authStore'
 import api from '@/utils/api'
-import { PageLoader, CustomSelect } from '@/components/ui/Common'
+import { PageLoader, CustomSelect, PixelLoader } from '@/components/ui/Common'
 import { BarChart, LineChart } from '@/components/ui/Charts'
 import toast from 'react-hot-toast'
 import {
@@ -10,7 +10,7 @@ import {
   Search, ChevronDown, Check, Ban, UserCog, Trash2, Plus, X,
   Activity, Clock, Globe, Lock, RefreshCw, Settings, Save,
   Eye, EyeOff, Server, HardDrive, Wifi, Cpu, Database, Folder,
-  ChevronLeft, ChevronRight
+  ChevronLeft, ChevronRight, ChevronUp, FileJson
 } from 'lucide-react'
 import { formatDistanceToNow } from 'date-fns'
 import { ru } from 'date-fns/locale'
@@ -48,6 +48,198 @@ function StatCard({ icon: Icon, label, value, color = 'purple', sub }) {
       </div>
       <div className="text-sm font-medium text-text-primary">{label}</div>
       {sub && <div className="text-xs text-text-muted mt-0.5">{sub}</div>}
+    </div>
+  )
+}
+
+function resolveRef(ref, components) {
+  if (!ref) return null
+  const path = ref.replace('#/components/schemas/', '').split('/')
+  let obj = components?.schemas
+  for (const key of path) {
+    if (!obj) return null
+    obj = obj[key]
+  }
+  return obj
+}
+
+function renderSchema(schema, components, depth = 0) {
+  if (!schema) return null
+  if (schema.$ref) {
+    const resolved = resolveRef(schema.$ref, components)
+    if (!resolved) return <span className="text-text-muted">{schema.$ref.split('/').pop()}</span>
+    return renderSchema(resolved, components, depth)
+  }
+  if (schema.type === 'object' && schema.properties) {
+    return (
+      <div className="space-y-1">
+        {Object.entries(schema.properties).map(([name, prop]) => {
+          const required = schema.required?.includes(name)
+          const propSchema = prop.$ref ? resolveRef(prop.$ref, components) : prop
+          return (
+            <div key={name} className="flex items-start gap-2 text-[11px]">
+              <span className="text-accent-purple-light font-medium shrink-0">{name}</span>
+              <span className="text-text-muted shrink-0">{propSchema?.type || prop.type || 'any'}</span>
+              {required && <span className="text-red-400 text-[10px] shrink-0">*</span>}
+              {prop.description && <span className="text-text-muted">— {prop.description}</span>}
+            </div>
+          )
+        })}
+      </div>
+    )
+  }
+  if (schema.type === 'array' && schema.items) {
+    return <span className="text-text-muted">array&lt;{schema.items.type || schema.items.$ref?.split('/').pop() || 'any'}&gt;</span>
+  }
+  if (schema.enum) {
+    return <span className="text-text-muted">enum: {schema.enum.join(', ')}</span>
+  }
+  return <span className="text-text-muted">{schema.type || 'any'}</span>
+}
+
+function EndpointRow({ method, path, meta, spec, components }) {
+  const [expanded, setExpanded] = useState(false)
+  const methodColor = {
+    get: 'text-green-400', post: 'text-blue-400',
+    put: 'text-amber-400', patch: 'text-orange-400',
+    delete: 'text-red-400',
+  }[method] || 'text-text-muted'
+
+  const params = meta.parameters?.filter(p => p.in === 'path' || p.in === 'query') || []
+  const hasBody = meta.requestBody?.content?.['application/json']?.schema
+  const responses = Object.entries(meta.responses || {})
+
+  return (
+    <div className="bg-bg-tertiary rounded-lg overflow-hidden">
+      <button
+        onClick={() => setExpanded(!expanded)}
+        className="w-full flex items-center gap-3 text-xs font-mono px-3 py-2.5 text-left hover:bg-bg-hover transition-colors"
+      >
+        <span className={`shrink-0 font-bold uppercase ${methodColor}`}>{method}</span>
+        <span className="text-text-primary break-all">{path}</span>
+        {meta.summary && <span className="text-text-muted ml-auto shrink-0 hidden lg:inline text-[11px]">{meta.summary}</span>}
+        <ChevronDown size={12} className={`text-text-muted shrink-0 transition-transform ${expanded ? 'rotate-180' : ''}`} />
+      </button>
+      {expanded && (
+        <div className="px-3 pb-3 space-y-3 text-xs border-t border-border pt-2 mt-0">
+          {meta.description && <p className="text-text-secondary leading-relaxed">{meta.description}</p>}
+
+          {params.length > 0 && (
+            <div>
+              <div className="text-text-muted font-semibold mb-1 text-[11px] uppercase tracking-wider">Параметры</div>
+              <div className="space-y-1">
+                {params.map(p => (
+                  <div key={p.name} className="flex items-start gap-2 text-[11px]">
+                    <span className="text-accent-purple-light font-medium shrink-0">{p.name}</span>
+                    <span className="text-text-muted shrink-0">{p.schema?.type || 'string'}</span>
+                    {p.required && <span className="text-red-400 text-[10px] shrink-0">*</span>}
+                    <span className="text-text-muted shrink-0">{p.in}</span>
+                    {p.description && <span className="text-text-muted">— {p.description}</span>}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {hasBody && (
+            <div>
+              <div className="text-text-muted font-semibold mb-1 text-[11px] uppercase tracking-wider">Тело запроса</div>
+              {renderSchema(meta.requestBody.content['application/json'].schema, components)}
+            </div>
+          )}
+
+          {responses.length > 0 && (
+            <div>
+              <div className="text-text-muted font-semibold mb-1 text-[11px] uppercase tracking-wider">Ответы</div>
+              <div className="space-y-1">
+                {responses.map(([code, resp]) => {
+                  const respSchema = resp.content?.['application/json']?.schema
+                  return (
+                    <div key={code} className="flex items-start gap-2 text-[11px]">
+                      <span className={`font-mono font-bold shrink-0 ${code.startsWith('2') ? 'text-green-400' : code.startsWith('4') ? 'text-amber-400' : code.startsWith('5') ? 'text-red-400' : 'text-text-muted'}`}>
+                        {code}
+                      </span>
+                      <span className="text-text-secondary">{resp.description}</span>
+                      {respSchema && (
+                        <span className="text-text-muted shrink-0">
+                          {respSchema.$ref ? respSchema.$ref.split('/').pop() : respSchema.type || '—'}
+                        </span>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function ApiDocsSection() {
+  const [open, setOpen] = useState(false)
+  const [spec, setSpec] = useState(null)
+  const [loading, setLoading] = useState(false)
+
+  useEffect(() => {
+    if (!open || spec) return
+    setLoading(true)
+    api.get('/openapi.json').then(({ data }) => {
+      setSpec(data)
+    }).catch(() => {}).finally(() => setLoading(false))
+  }, [open, spec])
+
+  const paths = spec?.paths || {}
+
+  const grouped = {}
+  Object.entries(paths).forEach(([path, methods]) => {
+    Object.entries(methods).forEach(([method, meta]) => {
+      const tag = meta.tags?.[0] || 'other'
+      if (!grouped[tag]) grouped[tag] = {}
+      if (!grouped[tag][path]) grouped[tag][path] = {}
+      grouped[tag][path][method] = meta
+    })
+  })
+
+  return (
+    <div className="card mb-6">
+      <button
+        onClick={() => setOpen(!open)}
+        className="w-full flex items-center justify-between text-left"
+      >
+        <h3 className="font-semibold text-text-primary flex items-center gap-2">
+          <FileJson size={16} className="text-accent-purple-light" /> API Документация
+        </h3>
+        {open ? <ChevronUp size={16} className="text-text-muted" /> : <ChevronDown size={16} className="text-text-muted" />}
+      </button>
+      {open && (
+        <div className="mt-4 space-y-4 max-h-[480px] overflow-y-auto thin-scroll">
+          {loading && <p className="text-sm text-text-muted">Загрузка...</p>}
+          {!loading && Object.keys(grouped).length === 0 && (
+            <p className="text-sm text-text-muted">Нет эндпоинтов</p>
+          )}
+          {spec && Object.entries(grouped).map(([tag, paths]) => (
+            <div key={tag}>
+              <div className="text-text-muted font-semibold text-[11px] uppercase tracking-wider mb-2 sticky top-0 bg-bg-card py-1 z-10">{tag}</div>
+              <div className="space-y-1.5">
+                {Object.entries(paths).map(([path, methods]) =>
+                  Object.entries(methods).map(([method, meta]) => (
+                    <EndpointRow
+                      key={`${method}-${path}`}
+                      method={method}
+                      path={path}
+                      meta={meta}
+                      spec={spec}
+                      components={spec.components}
+                    />
+                  ))
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   )
 }
@@ -309,7 +501,7 @@ export default function AdminPage() {
           onClick={handleRefresh}
           className="btn-secondary flex items-center gap-2 text-sm"
         >
-          <RefreshCw size={14} className={refreshing ? 'animate-spin' : ''} /> Обновить
+          {refreshing ? <PixelLoader text="..." size="sm" /> : <RefreshCw size={14} />} Обновить
         </button>
       </div>
 
@@ -355,6 +547,7 @@ export default function AdminPage() {
               <StatCard icon={Tag} label="Тегов" value={stats.total_tags} color="amber" />
               <StatCard icon={HardDrive} label="Файлов" value={stats.total_files} color="amber" />
               <StatCard icon={Folder} label="Папок" value={stats.total_folders} color="green" />
+              <StatCard icon={Database} label="Миграция" value={stats.migration_version} color="purple" />
             </div>
 
             {/* Распределение по ролям */}
@@ -385,6 +578,9 @@ export default function AdminPage() {
                 })}
               </div>
             </div>
+
+            {/* API Документация (сворачиваемая) */}
+            <ApiDocsSection />
           </motion.div>
         )}
 
@@ -526,6 +722,16 @@ export default function AdminPage() {
                       </div>
                     </div>
                   )}
+                  <div className="grid grid-cols-2 gap-2 text-xs">
+                    <div className="bg-bg-tertiary rounded-lg p-2">
+                      <div className="text-text-muted">PostgreSQL</div>
+                      <div className="text-text-primary font-mono">{formatBytes(health.disk.db_size)}</div>
+                    </div>
+                    <div className="bg-bg-tertiary rounded-lg p-2">
+                      <div className="text-text-muted">MinIO</div>
+                      <div className="text-text-primary font-mono">{formatBytes(health.disk.storage_size)}</div>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -811,7 +1017,7 @@ export default function AdminPage() {
             </div>
 
             <div className="space-y-3">
-              {siteSettings.map((setting) => {
+              {siteSettings.filter(s => s.key !== 'theme').map((setting) => {
                 const key = setting.key
                 const label = SETTING_LABELS[key] || key
                 const desc = SETTING_DESCRIPTIONS[key] || ''

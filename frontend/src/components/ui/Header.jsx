@@ -1,5 +1,5 @@
 import { useLocation, useNavigate } from 'react-router-dom'
-import { Menu, ArrowLeft, Sun } from 'lucide-react'
+import { Menu, ArrowLeft, Sun, Moon } from 'lucide-react'
 import { useUIStore } from '@/store/uiStore'
 
 const TITLES = {
@@ -11,6 +11,8 @@ const TITLES = {
 
 export default function Header() {
   const toggleSidebar = useUIStore((s) => s.toggleSidebar)
+  const theme = useUIStore((s) => s.theme)
+  const toggleTheme = useUIStore((s) => s.toggleTheme)
   const location = useLocation()
   const navigate = useNavigate()
 
@@ -41,6 +43,13 @@ export default function Header() {
       <h1 className="text-sm font-semibold text-text-primary">{title}</h1>
 
       <div className="ml-auto flex items-center gap-2">
+        <button
+          onClick={toggleTheme}
+          className="p-2 rounded-lg hover:bg-bg-tertiary text-text-muted hover:text-text-primary transition-all"
+          title={theme === 'dark' ? 'Светлая тема' : 'Тёмная тема'}
+        >
+          {theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
+        </button>
         <div className="text-xs text-text-muted bg-bg-tertiary border border-border px-2.5 py-1 rounded-full">
           v1.0
         </div>

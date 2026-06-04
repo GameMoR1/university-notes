@@ -96,6 +96,21 @@ class FileStorage:
                 return True
             return False
 
+    async def get_total_size(self) -> int:
+        total = 0
+        if self._use_minio and self._client:
+            try:
+                objects = self._client.list_objects(self._bucket, recursive=True)
+                for obj in objects:
+                    total += obj.size
+            except S3Error:
+                logger.warning("Не удалось получить размер хранилища MinIO")
+        else:
+            for f in self._local_path.rglob("*"):
+                if f.is_file():
+                    total += f.stat().st_size
+        return total
+
     async def get_metadata(self, file_path: str) -> Optional[dict]:
         if self._use_minio and self._client:
             try:

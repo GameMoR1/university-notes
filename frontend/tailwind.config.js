@@ -6,16 +6,16 @@ export default {
     extend: {
       colors: {
         bg: {
-          primary: '#0d0d0f',
-          secondary: '#141416',
-          tertiary: '#1a1a1e',
-          card: '#1e1e24',
-          hover: '#252530',
+          primary: 'rgb(var(--bg-primary) / <alpha-value>)',
+          secondary: 'rgb(var(--bg-secondary) / <alpha-value>)',
+          tertiary: 'rgb(var(--bg-tertiary) / <alpha-value>)',
+          card: 'rgb(var(--bg-card) / <alpha-value>)',
+          hover: 'rgb(var(--bg-hover) / <alpha-value>)',
         },
         accent: {
-          purple: '#7c3aed',
-          'purple-light': '#a78bfa',
-          'purple-dim': '#4c1d95',
+          purple: 'rgb(var(--accent-purple) / <alpha-value>)',
+          'purple-light': 'rgb(var(--accent-purple-light) / <alpha-value>)',
+          'purple-dim': 'rgb(var(--accent-purple-dim) / <alpha-value>)',
           blue: '#3b82f6',
           'blue-light': '#93c5fd',
           green: '#10b981',
@@ -23,15 +23,15 @@ export default {
           red: '#ef4444',
         },
         text: {
-          primary: '#f1f0f5',
-          secondary: '#9d9aae',
-          muted: '#5c5970',
-          accent: '#a78bfa',
+          primary: 'rgb(var(--text-primary) / <alpha-value>)',
+          secondary: 'rgb(var(--text-secondary) / <alpha-value>)',
+          muted: 'rgb(var(--text-muted) / <alpha-value>)',
+          accent: 'rgb(var(--text-accent) / <alpha-value>)',
         },
         border: {
-          DEFAULT: '#2a2a35',
-          light: '#3a3a48',
-          accent: '#7c3aed',
+          DEFAULT: 'rgb(var(--border) / <alpha-value>)',
+          light: 'rgb(var(--border-light) / <alpha-value>)',
+          accent: 'rgb(var(--border-accent) / <alpha-value>)',
         },
       },
       fontFamily: {

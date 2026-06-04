@@ -7,12 +7,12 @@ import { oneDark } from '@codemirror/theme-one-dark'
 import FileProgress from '@/components/ui/FileProgress'
 import { MarkdownWithFiles } from '@/components/ui/FileEmbed'
 import api from '@/utils/api'
-import { PageLoader, CustomSelect } from '@/components/ui/Common'
+import { PageLoader, CustomSelect, PixelLoader } from '@/components/ui/Common'
 import toast from 'react-hot-toast'
 import { useSearchParams } from 'react-router-dom'
 import {
   Save, Eye, EyeOff, ArrowLeft, Tag, Link2, X, Plus,
-  Globe, Lock, Loader2, Folder, Bold, Italic, Heading1,
+  Globe, Lock, Folder, Bold, Italic, Heading1,
   Heading2, Heading3, List, ListOrdered, Quote, Code2,
   Minus, Link, Image, TextSelect, HelpCircle,
   Paperclip, Upload, FileIcon, FileImage, FileText, Film, Music,
@@ -182,7 +182,13 @@ export default function NoteEditPage() {
           }
         }),
         EditorView.theme({
-          '&': { background: '#141416', height: '100%', minHeight: '400px' },
+          '&': { background: 'rgb(var(--bg-secondary))', height: '100%', minHeight: '400px' },
+          '.cm-gutters': { background: 'rgb(var(--bg-tertiary))', borderRight: '1px solid rgb(var(--border))' },
+          '.cm-activeLineGutter': { background: 'rgb(var(--bg-hover) / 0.5)' },
+          '.cm-activeLine': { background: 'rgb(var(--bg-hover) / 0.3)' },
+          '.cm-selectionBackground': { background: 'rgba(124, 58, 237, 0.25) !important' },
+          '&.cm-focused .cm-selectionBackground': { background: 'rgba(124, 58, 237, 0.3) !important' },
+          '.cm-cursor': { borderLeftColor: 'rgb(124, 58, 237)' },
           '.cm-content': { padding: '16px', fontFamily: "'JetBrains Mono', monospace", fontSize: '14px' },
           '.cm-scroller': { overflow: 'auto' },
           '.cm-focused': { outline: 'none' },
@@ -445,7 +451,7 @@ export default function NoteEditPage() {
             disabled={saving}
             className="btn-primary flex items-center gap-2 text-sm h-9"
           >
-            {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
+            {saving ? <PixelLoader text="..." size="sm" className="text-white" /> : <Save size={14} />}
             Сохранить
           </button>
         </div>
@@ -514,7 +520,7 @@ export default function NoteEditPage() {
               )}
             </div>
           ) : (
-            <div ref={editorRef} className="flex-1" />
+            <div ref={editorRef} className="flex-1 min-h-0" />
           )}
         </div>
 

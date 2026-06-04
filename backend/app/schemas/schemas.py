@@ -242,6 +242,7 @@ class StatsOut(BaseModel):
     total_files: int = 0
     total_folders: int = 0
     total_views: int = 0
+    migration_version: str = ""
     notes_by_role: dict
     recent_logs: List[dict]
 
