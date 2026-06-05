@@ -82,7 +82,7 @@ async def run_migrations():
     from alembic import command
 
     alembic_cfg = Config(settings.ALEMBIC_CFG_PATH)
-    alembic_cfg.set_main_option("sqlalchemy.url", settings.sync_database_url)
+    alembic_cfg.set_main_option("sqlalchemy.url", settings.sync_database_url.replace("%", "%%"))
     command.upgrade(alembic_cfg, "head")
 
 
